@@ -1,0 +1,8 @@
+{
+    "name":"Данные о машинах",
+    "tuples limit":1000,
+    "structure":{
+        "Heroes":["Name","Role","Attributes"],
+        "Statistics":["WinRate","Matches in 2 weeks"]
+    }
+}
