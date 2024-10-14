@@ -1,5 +1,5 @@
 {
-    "name":"Данные о машинах",
+    "name":"Heroes Dota 2",
     "tuples limit":1000,
     "structure":{
         "Heroes":["Name","Role","Attributes"],
