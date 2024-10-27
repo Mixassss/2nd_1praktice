@@ -1,8 +1,8 @@
 {
-    "name":"Heroes Dota 2",
+    "name":"S7 Flights",
     "tuples limit":1000,
     "structure":{
-        "Heroes":["Name","Role","Attributes"],
-        "Statistics":["WinRate","Matches in 2 weeks"]
+        "Heroes":["City","Airplane model"],
+        "Statistics":["Flight number","Airplane number", "Gate"]
     }
 }
