@@ -1,8 +1,0 @@
-{
-    "name":"S7 Flights",
-    "tuples limit":1000,
-    "structure":{
-        "Heroes":["City","Airplane model"],
-        "Statistics":["Flight number","Airplane number", "Gate"]
-    }
-}
