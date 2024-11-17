@@ -25,7 +25,7 @@ void filerec (const string& filename, const string& data) { // Производ�
         cerr << "Ошибка! Не удается открыть файл для записи" << filename << endl;
         return;
     }
-    fout << data;
+    fout << data << endl;
     fout.close();
 }
 
@@ -137,25 +137,17 @@ struct BaseDate {
     }
 
     void Insert(string& command) { // Функция insert
-    size_t position = command.find_first_of(' ');
+        size_t position = command.find_first_of(' ');
         if (position == string::npos) {
             cerr << "Ошибка, нарушен синтаксис команды!" << endl;
             return;
         }
 
         string table = command.substr(0, position);
-        bool tableExists = false; // Проверка существования таблицы
-        for (size_t i = 0; i < tablesname.elementCount; ++i) {
-            if (tablesname.getElementAt(i) == table) {
-                tableExists = true;
-                break;
-            }
-        }
-
-        if (!tableExists) {
-            cerr << "Ошибка, нет такой таблицы!" << endl;
+        if (tablesname.find(table) == false) {
+            cerr << "Ошибка: нет такой таблицы!" << endl;
             return;
-        }   
+        }
 
         string valuesPart = command.substr(position + 1);
         if (valuesPart.substr(0, 7) != "values ") {
