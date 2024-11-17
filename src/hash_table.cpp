@@ -51,7 +51,6 @@ bool Hash_table::get(const string& key, string& value) {
     while(current) {
         if(current->key == key) {
             value = current->value; //Возвращаем значение
-            cout << value << endl;
             return true; //Ключ найден
         }
         current = current->next;

@@ -46,8 +46,8 @@ int countingLine (const string& filename) {
 
 struct BaseDate {
     string nameBD; // База данных самолетов
-    int limits; // Установленный лимит
-    SinglyLinkedList tablesname;
+    int rowLimits; // Установленный лимит
+    SinglyLinkedList tablesname; // Список названий таблиц
     Hash_table coloumnHash; // Хэш таблица для работы со столбцами
     Hash_table fileCountHash; // Хэш таблица для количества файлов таблиц
 
@@ -67,26 +67,24 @@ struct BaseDate {
         nameBD = Json["name"]; // Парсим название БД
 
         if (Json["tuples limit"].is_number_integer()) { // Извлечение лимита
-            limits = Json["tuples limit"];
+            rowLimits = Json["tuples limit"].get<int>();
         } else {
             cerr << "Неверный формат лимита!" << endl;
             exit(1);
         }
         
         if (Json.contains("structure") && Json["structure"].is_object()) {
-            for (auto& element : Json["structure"].items()) {
-                string tableName = element.key();
+            for (auto& item : Json["structure"].items()) {
+                string tableName = item.key() + "_pk_sequence,";
                 tablesname.pushBack(tableName); // Добавляем название таблицы
 
                 string coloumnName; // Добавление столбцов в хеш таблицу
-                for (auto& colona : element.value().items()) {
+                for (auto& colona : item.value().items()) {
                     coloumnName += colona.value().get<string>() + ",";
                 }
-                if (!coloumnName.empty()) {
-                    coloumnName.pop_back();
-                }
+                if (!coloumnName.empty()) coloumnName.pop_back();
                 coloumnHash.insert(tableName, coloumnName); // Вставка столбцов
-                fileCountHash.insert(tableName, to_string(1)); // Инициализация количества файлов
+                fileCountHash.insert(tableName, "1"); // Инициализация количества файлов
             }
         } else {
             cerr << "Структура не найдена!" << endl;
@@ -95,6 +93,46 @@ struct BaseDate {
     }
 
     void createdirect() { // Функция для создания рабочей директории
-        string commands;
+        string baseDir = "../" + nameBD;
+        filesystem::create_directories(baseDir);
+
+        for (int i = 0; i < tablesname.elementCount; ++i) {
+            string tableName = tablesname.getElementAt(i);
+            string tableDir = baseDir + "/" + tableName;
+
+            filesystem::create_directories(tableDir);
+
+            // Получаем названия столбцов в строку
+            string coloumnString;
+            if (!coloumnHash.get(tableName, coloumnString)) {
+                cerr << "Не удалось получить столбцы для таблицы: " << tableName << endl;
+                continue; // Пропускаем создание директории, если данные не найдены
+            }
+
+            string csvFile = tableDir + "/1.csv";
+            ofstream csv(csvFile);
+            if (csv.is_open()) {
+                csv << coloumnString << endl; // Запись в файл
+                csv.close();
+            }
+
+            // Блокировка таблицы
+            string lockFilePath = tableDir + "/" + tableName + "/" + tableName + "_lock.txt";
+            ofstream lockFile(lockFilePath);
+            if (lockFile.is_open()) {
+                lockFile << "open"; // Текущий статус блокировки
+                lockFile.close();
+            }
+
+            // Начальное значение первичного ключа
+            string pkFilePath = tableDir + "/" +  tableName + "/" + tableName + "_pk_sequence.txt";
+            ofstream pkFile(pkFilePath);
+            if (pkFile.is_open()) {
+                pkFile << "1"; // Начальное значение
+                pkFile.close();
+            } else {
+                cerr << "Ошибка! Не удалось открыть файл " << pkFilePath << " для записи." << endl;
+            }
+        }
     }
 };

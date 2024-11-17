@@ -107,6 +107,19 @@ void SinglyLinkedList::clearSList() {
     }
 }
 
+string SinglyLinkedList::getElementAt(size_t index) const {
+    Node* current = head;
+    size_t currentIndex = 0;
+    while (current != nullptr) {
+        if (currentIndex == index) {
+            return current->data;
+        }
+        current = current->next;
+        currentIndex++;
+    }
+    return ""; // Возвращаем пустую строку, если индекс вне диапазона
+}
+
 Node* SinglyLinkedList::getHead() const {
     return head;
 }
