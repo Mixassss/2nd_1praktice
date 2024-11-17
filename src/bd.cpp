@@ -75,15 +75,15 @@ struct BaseDate {
         
         if (Json.contains("structure") && Json["structure"].is_object()) {
             for (auto& item : Json["structure"].items()) {
-                string tableName = item.key() + "_pk_sequence,";
+                string tableName = item.key();
                 tablesname.pushBack(tableName); // Добавляем название таблицы
 
-                string coloumnName; // Добавление столбцов в хеш таблицу
+                string stolbName = item.key() + "_pk_sequence,"; // Добавление столбцов в хеш таблицу
                 for (auto& colona : item.value().items()) {
-                    coloumnName += colona.value().get<string>() + ",";
+                    stolbName += colona.value().get<string>() + ",";
                 }
-                if (!coloumnName.empty()) coloumnName.pop_back();
-                coloumnHash.insert(tableName, coloumnName); // Вставка столбцов
+                if (!stolbName.empty()) stolbName.pop_back();
+                coloumnHash.insert(tableName, stolbName); // Вставка столбцов
                 fileCountHash.insert(tableName, "1"); // Инициализация количества файлов
             }
         } else {
@@ -134,5 +134,90 @@ struct BaseDate {
                 cerr << "Ошибка! Не удалось открыть файл " << pkFilePath << " для записи." << endl;
             }
         }
+    }
+
+    void Insert(string& command) { // Функция insert
+    size_t position = command.find_first_of(' ');
+        if (position == string::npos) {
+            cerr << "Ошибка, нарушен синтаксис команды!" << endl;
+            return;
+        }
+
+        string table = command.substr(0, position);
+        bool tableExists = false; // Проверка существования таблицы
+        for (size_t i = 0; i < tablesname.elementCount; ++i) {
+            if (tablesname.getElementAt(i) == table) {
+                tableExists = true;
+                break;
+            }
+        }
+
+        if (!tableExists) {
+            cerr << "Ошибка, нет такой таблицы!" << endl;
+            return;
+        }   
+
+        string valuesPart = command.substr(position + 1);
+        if (valuesPart.substr(0, 7) != "values ") {
+            cerr << "Ошибка, нарушен синтаксис команды!" << endl;
+            return;
+        }
+        valuesPart.erase(0, 7);
+
+        if ((valuesPart.front() != '(') || (valuesPart.back() != ')')) {
+            cerr << "Ошибка, нарушен синтаксис команды!" << endl;
+            return;
+        }
+
+        valuesPart.erase(0, 1); // Удаляем открывающую скобку
+        valuesPart.pop_back(); // Удаляем закрывающую скобку
+        valuesPart.erase(remove_if(valuesPart.begin(), valuesPart.end(), ::isspace), valuesPart.end());
+
+        string pkFilePath = "../" + nameBD + "/" + table + "/" + table + "_pk_sequence.txt";
+        string pkValue = fileread(pkFilePath);
+        int pkInt = stoi(pkValue) + 1;
+        filerec(pkFilePath, to_string(pkInt));
+
+        string lockFilePath = "../" + nameBD + "/" + table + "/" + table + "_lock.txt";
+        string lockStatus = fileread(lockFilePath);
+        if (lockStatus != "open") {
+            cerr << "Ошибка, не удалось открыть таблицу!" << endl;
+            return;
+        }
+
+        string fileCountStr;
+        if (!fileCountHash.get(table, fileCountStr)) {
+            cerr << "Ошибка: Не удалось получить количество файлов для таблицы " << table << endl;
+            return;
+        }
+
+        int fileCount = stoi(fileCountStr);
+        string csvFilePath = "../" + nameBD + "/" + table + "/" + fileCountStr + ".csv";
+        int lineCount = countingLine(csvFilePath);
+
+        if (lineCount >= rowLimits) {
+            ++fileCount;
+            fileCountHash.remove(table); // Обновление количества файлов
+            fileCountHash.insert(table, to_string(fileCount));
+            csvFilePath = "../" + nameBD + "/" + table + "/" + to_string(fileCount) + ".csv";
+        }
+
+        ofstream csvFile(csvFilePath, ios::app);
+        if (!csvFile.is_open()) {
+            cerr << "Ошибка: Не удалось открыть файл " << csvFilePath << " для записи." << endl;
+            return;
+        }
+
+        if (lineCount == 0) {
+            string columnString;
+            if (!coloumnHash.get(table, columnString)) {
+                cerr << "Ошибка: Не удалось получить названия столбцов для таблицы " << table << endl;
+                return;
+            }
+            csvFile << columnString << endl;
+        }
+        csvFile << pkInt << ',' << valuesPart << '\n'; // Запись данных в файл
+        csvFile.close();
+        cout << "Команда выполнилась успешно!" << endl;
     }
 };
