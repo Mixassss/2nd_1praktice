@@ -22,9 +22,11 @@ struct Hash_table {
     ~Hash_table(); //Деконструктор
 
     int hashFunction(const string& key); // Хеш-функция
-    void insert(string &key, string &value); //Функция долбавления элемента
+    void insert(string &key, const string &value); //Функция долбавления элемента
     bool get(const string& key, string& value);
     bool remove(const string& key);
 };
+
+#include "../src/hash_table.cpp"
 
 #endif // HT_H

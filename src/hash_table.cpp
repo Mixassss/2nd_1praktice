@@ -22,7 +22,7 @@ int Hash_table::hashFunction(const string& key) {
     return hashFn(key) % SIZE;
 }
 
-void Hash_table::insert(string &key, string &value) {
+void Hash_table::insert(string &key, const string &value) {
     int hashValue = hashFunction(key); // Хэш значение соответствующее этому ключу
     HNode* newPair = new HNode(key, value); // Используем конструктор HNode
 
