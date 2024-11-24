@@ -60,6 +60,7 @@ struct BaseDate {
         }
         fin >> Json;
         fin.close();
+        
         if (!Json["name"].is_string()) {
             cerr << "Неверный формат JSON или каталог не найден!" << endl;
             exit(1);
@@ -136,35 +137,46 @@ struct BaseDate {
         }
     }
 
-    void Insert(string& command) { // Функция insert
+    void insert(string& command) { // Функция вставки
+        string valuesPrefix = "values "; // Определение префикса values
+        string table;
         size_t position = command.find_first_of(' ');
-        if (position == string::npos) {
-            cerr << "Ошибка, нарушен синтаксис команды!" << endl;
+
+        if (position == string::npos) { // Проверка на наличие пробела
+            cout << "Ошибка, нарушен синтаксис команды!" << endl;
             return;
         }
 
-        string table = command.substr(0, position);
-        if (tablesname.find(table) == false) {
-            cerr << "Ошибка: нет такой таблицы!" << endl;
+        table = command.substr(0, position); // Извлечение названия таблицы
+        command.erase(0, position + 1); // Удаление названия таблицы из команды
+
+        if (tablesname.getHead() == nullptr || !tablesname.find(table)) { // Проверка на существование таблицы
+            cout << "Ошибка, нет такой таблицы!" << endl;
             return;
         }
 
-        string valuesPart = command.substr(position + 1);
-        if (valuesPart.substr(0, 7) != "values ") {
-            cerr << "Ошибка, нарушен синтаксис команды!" << endl;
-            return;
-        }
-        valuesPart.erase(0, 7);
-
-        if ((valuesPart.front() != '(') || (valuesPart.back() != ')')) {
-            cerr << "Ошибка, нарушен синтаксис команды!" << endl;
+        if (command.substr(0, valuesPrefix.size()) != valuesPrefix) { // Проверка на наличие префикса values
+            cout << "Ошибка, нарушен синтаксис команды!" << endl;
             return;
         }
 
-        valuesPart.erase(0, 1); // Удаляем открывающую скобку
-        valuesPart.pop_back(); // Удаляем закрывающую скобку
-        valuesPart.erase(remove_if(valuesPart.begin(), valuesPart.end(), ::isspace), valuesPart.end());
+        command.erase(0, valuesPrefix.size()); // Удаление префикса values
+        position = command.find_first_of(' ');
 
+        if (position != string::npos || command.empty() || // Проверка на синтаксис
+            command.front() != '(' || command.back() != ')') {
+            cout << "Ошибка, нарушен синтаксис команды!" << endl;
+            return;
+        }
+
+        command.erase(0, 1); // Удаление открывающей скобки
+        command.pop_back();   // Удаление закрывающей скобки
+        command.erase(remove_if(command.begin(), command.end(), ::isspace), command.end()); // Удаление пробелов
+
+        performInsert(table, command); // Вызов функции вставки
+    }
+
+    void performInsert(string& table, string& values) { // Реализация вставки
         string pkFilePath = "../" + nameBD + "/" + table + "/" + table + "_pk_sequence.txt";
         string pkValue = fileread(pkFilePath);
         int pkInt = stoi(pkValue) + 1;
@@ -189,7 +201,7 @@ struct BaseDate {
 
         if (lineCount >= rowLimits) {
             ++fileCount;
-            fileCountHash.remove(table); // Обновление количества файлов
+            fileCountHash.remove(table); 
             fileCountHash.insert(table, to_string(fileCount));
             csvFilePath = "../" + nameBD + "/" + table + "/" + to_string(fileCount) + ".csv";
         }
@@ -208,7 +220,7 @@ struct BaseDate {
             }
             csvFile << columnString << endl;
         }
-        csvFile << pkInt << ',' << valuesPart << '\n'; // Запись данных в файл
+        csvFile << pkInt << ',' << values << '\n'; 
         csvFile.close();
         cout << "Команда выполнилась успешно!" << endl;
     }
