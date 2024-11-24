@@ -151,12 +151,12 @@ struct BaseDate {
         command.erase(0, position + 1); // Удаление названия таблицы из команды
 
         if (tablesname.getHead() == nullptr || !tablesname.find(table)) { // Проверка на существование таблицы
-            cout << "Ошибка, нет такой таблицы!" << endl;
+            cout << "Ошибка! Синтаксис команды нарушен!" << endl;
             return;
         }
 
         if (command.substr(0, valuesPrefix.size()) != valuesPrefix) { // Проверка на наличие префикса values
-            cout << "Ошибка, нарушен синтаксис команды!" << endl;
+            cout << "Ошибка! Синтаксис команды нарушен!" << endl;
             return;
         }
 
@@ -165,7 +165,7 @@ struct BaseDate {
 
         if (position != string::npos || command.empty() || // Проверка на синтаксис
             command.front() != '(' || command.back() != ')') {
-            cout << "Ошибка, нарушен синтаксис команды!" << endl;
+            cout << "Ошибка! Синтаксис команды нарушен!" << endl;
             return;
         }
 
@@ -185,7 +185,7 @@ struct BaseDate {
         string lockFilePath = "../" + nameBD + "/" + table + "/" + table + "_lock.txt";
         string lockStatus = fileread(lockFilePath);
         if (lockStatus != "open") {
-            cerr << "Ошибка, не удалось открыть таблицу!" << endl;
+            cerr << "Ошибка! Таблица не открылась!" << endl;
             return;
         }
 
@@ -208,14 +208,14 @@ struct BaseDate {
 
         ofstream csvFile(csvFilePath, ios::app);
         if (!csvFile.is_open()) {
-            cerr << "Ошибка: Не удалось открыть файл " << csvFilePath << " для записи." << endl;
+            cerr << "Ошибка с открытием файла " << csvFilePath << " для записи!" << endl;
             return;
         }
 
         if (lineCount == 0) {
             string columnString;
             if (!coloumnHash.get(table, columnString)) {
-                cerr << "Ошибка: Не удалось получить названия столбцов для таблицы " << table << endl;
+                cerr << "Ошибка! Не удалось получить названия столбцов для таблицы " << table << endl;
                 return;
             }
             csvFile << columnString << endl;
@@ -223,5 +223,47 @@ struct BaseDate {
         csvFile << pkInt << ',' << values << '\n'; 
         csvFile.close();
         cout << "Команда выполнилась успешно!" << endl;
+    }
+
+    void delet(string& command) {
+        string table, yslov;
+        size_t pos = command.find_first_of(' ');
+
+        if (pos != string::npos) {
+            table = command.substr(0, pos);
+            yslov = command.substr(pos + 1);
+        } else {
+            table = command;
+        }
+
+        if (!tablesname.find(table)) {
+            cout << "Ошибка! Нет такой таблицы" << endl;
+            return;
+        }
+
+        if (yslov.empty()) {
+            delAll(table);
+        } else if (yslov.substr(0, 6) == "WHERE "){
+            yslov.erase(0, 6);
+            processWhereConditions(table, yslov);
+        } else {
+            cout << "Ошибка! Синтаксис команды нарушен!" << endl;
+        }
+    }
+
+    void delAll(const string& table) {
+        string lockFilePath = "../" + nameBD + "/" + table + "/" + table + "_lock.txt";
+        filerec(lockFilePath, "close");
+
+        int fileCount;
+        if (fileCountHash.get(table, fileCount)) {
+            for (int i = 1; i <= fileCount; ++i) {
+                string csvFilePath = "../" + nameBD + "/" + table + "/" + to_string(i) + ".csv";
+                filerec(csvFilePath, ""); // Очищаем файл
+            }
+        }
+
+        filerec(lockFilePath, "open");
+        cout << "Все строки таблицы удалены!" << endl;
     }
 };
