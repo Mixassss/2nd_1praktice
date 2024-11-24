@@ -138,7 +138,7 @@ struct BaseDate {
     }
 
     void insert(string& command) { // Функция вставки
-        string valuesPrefix = "values "; // Определение префикса values
+        string valuesPrefix = "VALUES "; // Определение префикса values
         string table;
         size_t position = command.find_first_of(' ');
 
@@ -181,8 +181,8 @@ struct BaseDate {
         }
 
         // Считаем количество колонок
-        int countColumns = std::count(columnData.begin(), columnData.end(), ',') + 1;
-        int countValues = std::count(command.begin(), command.end(), ',') + 1;
+        int countColumns = count(columnData.begin(), columnData.end(), ',') + 1;
+        int countValues = count(command.begin(), command.end(), ',') + 1;
 
         if (countColumns != countValues) {
             cout << "Ошибка! Количество значений не совпадает с количеством колонок!" << endl;
@@ -400,5 +400,19 @@ struct BaseDate {
 
         filerec(lockFilePath, "open"); // Разблокируем таблицу
         cout << "Команда выполнена успешно!" << endl;
+    }
+
+    void commands(string& command, BaseDate& db) {
+        if (command.substr(0, 11) == "INSERT INTO") {
+            command.erase(0, 12);
+            db.insert(command); // Вызываем через объект
+        } else if (command.substr(0, 11) == "DELETE FROM") {
+            command.erase(0, 12);
+            db.delet(command); // Вызываем через объект
+        } else if (command == "STOP") {
+            exit(0);
+        } else {
+            cout << "Ошибка! Введенной команды нет!" << endl; 
+        }
     }
 };
