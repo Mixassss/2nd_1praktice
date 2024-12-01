@@ -241,10 +241,11 @@ struct BaseDate {
         checkInsert(table, command); // Вызов функции вставки
     }
 
-    void delAll(string& table) { // Удаление всех строк из таблицы
+    void delAll(string& table) { // Удаление всех строк из таблицы, кроме заголовков
         string lockFilePath = "../" + nameBD + "/" + table + "/" + table + "_lock.txt";
         filerec(lockFilePath, "close"); // Блокируем таблицу
 
+        // Получаем количество файлов для таблицы
         string fileCountStr;
         if (!fileCountHash.get(table, fileCountStr)) {
             cerr << "Ошибка: Не удалось получить количество файлов для таблицы " << table << endl;
@@ -254,58 +255,105 @@ struct BaseDate {
         int fileCount = stoi(fileCountStr);
         for (int i = 1; i <= fileCount; ++i) {
             string csvFilePath = "../" + nameBD + "/" + table + "/" + to_string(i) + ".csv";
-            filerec(csvFilePath, ""); // Очищаем файл
+            
+            // Открываем файл для чтения
+            ifstream inFile(csvFilePath);
+            ofstream outFile(csvFilePath + ".tmp"); // Временный файл для записи
+
+            if (!inFile.is_open() || !outFile.is_open()) {
+                cerr << "Ошибка: Не удалось открыть файл " << csvFilePath << endl;
+                continue;
+            }
+
+            string line;
+            int lineNumber = 0;
+
+            // Считываем строки и записываем только заголовок
+            while (getline(inFile, line)) {
+                if (lineNumber == 0) {
+                    outFile << line << endl; // Записываем заголовок
+                }
+                lineNumber++;
+            }
+
+            inFile.close();
+            outFile.close();
+
+            // Заменяем оригинальный файл временным
+            rename((csvFilePath + ".tmp").c_str(), csvFilePath.c_str());
         }
 
+        // Обновление первичного ключа
+        string pkFilePath = "../" + nameBD + "/" + table + "/" + table + "_pk_sequence.txt";
+        filerec(pkFilePath, "1"); // Сбрасываем первичный ключ на 1
+
         filerec(lockFilePath, "open"); // Разблокируем таблицу
-        cout << "Все строки таблицы удалены!" << endl;
+        cout << "Все строки таблицы удалены, первичный ключ обновлён!" << endl;
     }
 
-    void delWhereProcess(string& conditions, string& table) { // Удаление строк по условию
+    void delWhere(string& conditions, string& table) {
         if (conditions.empty()) {
             cout << "Ошибка! Неправильное условие!" << endl;
             return;
         }
 
-        ssize_t pos = conditions.find(" ");
-        
-        if (pos == string::npos) {
+        size_t wherePos = conditions.find("WHERE ");
+        if (wherePos == string::npos) {
+            cout << "Ошибка! Отсутствует условие WHERE!" << endl;
+            return;
+        }
+
+        string condition = conditions.substr(wherePos + 6); // Извлекаем условие после 'WHERE '
+
+        // Убираем пробелы
+        condition.erase(remove_if(condition.begin(), condition.end(), ::isspace), condition.end());
+
+        string logicalOp = ""; // Определение логического оператора
+        size_t logicOpPos = condition.find("AND");
+        if (logicOpPos == string::npos) {
+            logicOpPos = condition.find("OR");
+            if (logicOpPos != string::npos) logicalOp = "OR";
+        } else {
+            logicalOp = "AND";
+        }
+
+        string column, value; // Разделяем колонку и значение
+        size_t eqPos = condition.find('=');
+        if (eqPos == string::npos) {
             cout << "Ошибка! Неправильное условие!" << endl;
             return;
         }
-
-        string column, value;
-        string logicOp = (conditions.find("OR") != string::npos) ? "OR" : "AND";
-
-        // Извлечение имени столбца и значения
-        conditions.insert(pos, " = "); // вставка оператора равенства
-        column = conditions.substr(0, pos);
-        value = conditions.substr(pos + 3); // Убираем пробелы и '='
-        value.erase(remove_if(value.begin(), value.end(), ::isspace), value.end());
-            
-        // Убираем "WHERE" и пробелы
-        column.erase(remove_if(column.begin(), column.end(), ::isspace), column.end());
+        column = condition.substr(0, eqPos);
+        value = condition.substr(eqPos + 1);
         
-        // Проверяем наличие колонки с использованием точечной нотации
-        if (column.find('.') == string::npos) {
-            cout << "Ошибка! Используйте точечную нотацию для указания столбца." << endl;
-            return;
+        // Удаляем одинарные кавычки из значения
+        if (!value.empty() && value.front() == '\'' && value.back() == '\'') {
+            value = value.substr(1, value.size() - 2);
         }
 
-        string tableName = column.substr(0, column.find('.'));
-        string columnName = column.substr(column.find('.') + 1);
-
-        if (!tablesname.find(tableName)) {
-            cout << "Ошибка! Нет такой таблицы!" << endl;
-            return;
-        }
-
-        string columnData;
-        if (!coloumnHash.get(tableName, columnData)) {
+        string columnData; // Удаление строк
+        if (!coloumnHash.get(table, columnData)) {
             cout << "Ошибка! Нет таких столбцов в таблице!" << endl;
             return;
         }
 
+        deleteRows(table, column, value, logicalOp);
+    }
+
+    void deleteRows(string& table, string& column, string& value, const string& logicalOp = "") {
+        // Блокировка таблицы
+        string lockFilePath = "../" + nameBD + "/" + table + "/" + table + "_lock.txt";
+        filerec(lockFilePath, "close");
+
+        // Проверка наличия столбца
+        string columnData;
+        if (!coloumnHash.get(table, columnData)) {
+            cout << "Ошибка! Нет таких столбцов в таблице!" << endl;
+            filerec(lockFilePath, "open");
+            return;
+        }
+
+        // Получение индекса столбца
         int columnIndex = -1;
         stringstream ss(columnData);
         string colName;
@@ -321,12 +369,11 @@ struct BaseDate {
 
         if (columnIndex == -1) {
             cout << "Ошибка! Нет такого столбца!" << endl;
+            filerec(lockFilePath, "open");
             return;
         }
 
-        string lockFilePath = "../" + nameBD + "/" + table + "/" + table + "_lock.txt";
-        filerec(lockFilePath, "close");
-
+        // Чтение количества файлов
         string fileCountStr;
         if (!fileCountHash.get(table, fileCountStr)) {
             cerr << "Ошибка: Не удалось получить количество файлов для таблицы " << table << endl;
@@ -335,7 +382,6 @@ struct BaseDate {
         }
 
         int fileCount = stoi(fileCountStr);
-
         for (int i = 1; i <= fileCount; ++i) {
             string csvFilePath = "../" + nameBD + "/" + table + "/" + to_string(i) + ".csv";
             string csvContent = fileread(csvFilePath);
@@ -350,19 +396,20 @@ struct BaseDate {
                 bool shouldRemove = false;
 
                 while (getline(lineStream, token, ',')) {
-                    if (currentColumnIndex == columnIndex && token == value) { // Проверка условия удаления
-                        shouldRemove = true;
+                    bool matchFound = (currentColumnIndex == columnIndex && token == value);
+                    if ((logicalOp == "AND" && matchFound) || (logicalOp == "OR" && !matchFound)) {
+                        shouldRemove = (logicalOp == "OR") ? false : true;
                         break;
                     }
                     currentColumnIndex++;
                 }
 
-                if ((logicOp == "AND" && shouldRemove) || (logicOp == "OR" && !shouldRemove)) {
-                    continue; // Условие сработало, пропускаем строку
-                } else {
-                    newCsvContent += line + "\n"; // сохраняем строку
+                // Сохраняем строку, если она не подлежит удалению
+                if (!shouldRemove) {
+                    newCsvContent += line + "\n";
                 }
             }
+
             filerec(csvFilePath, newCsvContent); // Обновляем файл CSV
         }
 
@@ -375,8 +422,23 @@ struct BaseDate {
             command.erase(0, 12);
             insert(command);
         } else if (command.substr(0, 11) == "DELETE FROM") {
-            command.erase(0, 12);
-            //db.delet(command); // Вызываем через объект
+            command.erase(0, 12); // Удаление "DELETE FROM"
+            size_t wherePos = command.find("WHERE");
+            string table, conditions;
+
+            if (wherePos != string::npos) {
+                table = command.substr(0, wherePos); // Имя таблицы
+                conditions = command.substr(wherePos); // Условия
+            } else {
+            table = command; // Если нет условий, то полное имя таблицы
+            conditions = ""; // Условия пустое
+            }
+        
+            if (conditions.empty()) {
+                delAll(table); // Если нет условий WHERE, то удаляем все строки
+                } else {
+                delWhere(conditions, table); // Удаление с условиями
+            }
         } else if (command == "STOP") {
             exit(0);
         } else {
