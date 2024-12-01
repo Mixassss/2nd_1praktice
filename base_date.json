@@ -1,0 +1,8 @@
+{
+    "name": "S7 Flights",
+    "tuples limit": 1000,
+    "structure": {
+        "aircraftInfo": ["number", "model"],
+        "departureInfo": ["flight number", "city depart", "gate", "city arrival"]
+    }
+}

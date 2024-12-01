@@ -51,41 +51,31 @@ struct BaseDate {
     Hash_table coloumnHash; // Хэш таблица для работы со столбцами
     Hash_table fileCountHash; // Хэш таблица для количества файлов таблиц
 
-    void parser() { // Парсинг json
+    void parser() {
         nlohmann::json Json;
         ifstream fin("../base_date.json");
         if (!fin.is_open()) {
-            cerr << "Ошибка, не удалось открыть файл Json!" << endl;
+            cerr << "Ошибка! Не удалось открыть файл Json!" << endl;
             exit(1);
         }
         fin >> Json;
-        fin.close();
-        
-        if (!Json["name"].is_string()) {
-            cerr << "Неверный формат JSON или каталог не найден!" << endl;
-            exit(1);
-        } 
-        nameBD = Json["name"]; // Парсим название БД
 
-        if (Json["tuples limit"].is_number_integer()) { // Извлечение лимита
-            rowLimits = Json["tuples limit"].get<int>();
-        } else {
-            cerr << "Неверный формат лимита!" << endl;
-            exit(1);
-        }
-        
+        nameBD = Json["name"].get<string>();
+        rowLimits = Json["tuples limit"].get<int>();
+
         if (Json.contains("structure") && Json["structure"].is_object()) {
             for (auto& item : Json["structure"].items()) {
                 string tableName = item.key();
-                tablesname.pushBack(tableName); // Добавляем название таблицы
+                tablesname.pushBack(tableName);
 
-                string stolbName = item.key() + "_pk_sequence,"; // Добавление столбцов в хеш таблицу
-                for (auto& colona : item.value().items()) {
-                    stolbName += colona.value().get<string>() + ",";
+                // Сбор колонок с первичным ключом
+                string columnString = tableName + "_pk,"; // Добавляем первичный ключ
+                for (auto& column : item.value().items()) {
+                    columnString += column.value().get<string>() + ",";
                 }
-                if (!stolbName.empty()) stolbName.pop_back();
-                coloumnHash.insert(tableName, stolbName); // Вставка столбцов
-                fileCountHash.insert(tableName, "1"); // Инициализация количества файлов
+                if (!columnString.empty()) columnString.pop_back();
+                coloumnHash.insert(tableName, columnString);
+                fileCountHash.insert(tableName, "1");
             }
         } else {
             cerr << "Структура не найдена!" << endl;
@@ -93,7 +83,7 @@ struct BaseDate {
         }
     }
 
-    void createdirect() { // Функция для создания рабочей директории
+    void createdirect() {
         string baseDir = "../" + nameBD;
         filesystem::create_directories(baseDir);
 
@@ -103,100 +93,50 @@ struct BaseDate {
 
             filesystem::create_directories(tableDir);
 
-            // Получаем названия столбцов в строку
-            string coloumnString;
-            if (!coloumnHash.get(tableName, coloumnString)) {
+            string columnString;
+            if (!coloumnHash.get(tableName, columnString)) {
                 cerr << "Не удалось получить столбцы для таблицы: " << tableName << endl;
-                continue; // Пропускаем создание директории, если данные не найдены
+                continue;
             }
 
-            string csvFile = tableDir + "/1.csv";
-            ofstream csv(csvFile);
-            if (csv.is_open()) {
-                csv << coloumnString << endl; // Запись в файл
-                csv.close();
+            string csvFilePath = tableDir + "/1.csv";
+            ofstream csvFile(csvFilePath);
+            if (csvFile.is_open()) {
+                csvFile << columnString << endl; 
+                csvFile.close();
             }
 
-            // Блокировка таблицы
-            string lockFilePath = tableDir + "/" + tableName + "/" + tableName + "_lock.txt";
+            // Файл блокировки
+            string lockFilePath = tableDir + "/" + tableName + "_lock.txt";
             ofstream lockFile(lockFilePath);
             if (lockFile.is_open()) {
-                lockFile << "open"; // Текущий статус блокировки
+                lockFile << "open";
                 lockFile.close();
             }
 
-            // Начальное значение первичного ключа
-            string pkFilePath = tableDir + "/" +  tableName + "/" + tableName + "_pk_sequence.txt";
+            // Файл первичного ключа
+            string pkFilePath = tableDir + "/" + tableName + "_pk_sequence.txt";
             ofstream pkFile(pkFilePath);
             if (pkFile.is_open()) {
-                pkFile << "1"; // Начальное значение
+                pkFile << "1"; 
                 pkFile.close();
             } else {
-                cerr << "Ошибка! Не удалось открыть файл " << pkFilePath << " для записи." << endl;
+                cerr << "Ошибка! Не удалось открыть файл для записи: " << pkFilePath << endl;
             }
         }
     }
 
-    void insert(string& command) { // Функция вставки
-        string valuesPrefix = "VALUES "; // Определение префикса values
-        string table;
-        size_t position = command.find_first_of(' ');
-
-        if (position == string::npos) { // Проверка на наличие пробела
-            cout << "Ошибка! Синтаксис команды нарушен!" << endl;
-            return;
-        }
-
-        table = command.substr(0, position); // Извлечение названия таблицы
-        command.erase(0, position + 1); // Удаление названия таблицы из команды
-
-        if (tablesname.getHead() == nullptr || !tablesname.find(table)) { // Проверка на существование таблицы
-            cout << "Ошибка! Синтаксис команды нарушен!" << endl;
-            return;
-        }
-
-        if (command.substr(0, valuesPrefix.size()) != valuesPrefix) { // Проверка на наличие префикса values
-            cout << "Ошибка! Синтаксис команды нарушен!" << endl;
-            return;
-        }
-
-        command.erase(0, valuesPrefix.size()); // Удаление префикса values
-        position = command.find_first_of(' ');
-
-        if (position != string::npos || command.empty() || // Проверка на синтаксис
-            command.front() != '(' || command.back() != ')') {
-            cout << "Ошибка! Синтаксис команды нарушен!" << endl;
-            return;
-        }
-
-        command.erase(0, 1); // Удаление открывающей скобки
-        command.pop_back();   // Удаление закрывающей скобки
-        command.erase(remove_if(command.begin(), command.end(), ::isspace), command.end()); // Удаление пробелов
-
-        // Проверка на количество колонок
-        string columnData;
-        if (!coloumnHash.get(table, columnData)) {
-            cerr << "Ошибка! Не удалось получить названия столбцов для таблицы " << table << endl;
-            return;
-        }
-
-        // Считаем количество колонок
-        int countColumns = count(columnData.begin(), columnData.end(), ',') + 1;
-        int countValues = count(command.begin(), command.end(), ',') + 1;
-
-        if (countColumns != countValues) {
-            cout << "Ошибка! Количество значений не совпадает с количеством колонок!" << endl;
-            return;
-        }
-
-        checkInsert(table, command); // Вызов функции вставки
-    }
-
     void checkInsert(string& table, string& values) {
+        string lockFilePath = "../" + nameBD + "/" + table + "/" + table + "_lock.txt";
+        if (fileread(lockFilePath) != "open") {
+            cerr << "Ошибка! Таблица " << table << " заблокирована другим пользователем!" << endl;
+            return;
+        }
+
+        // Увеличиваем первичный ключ
         string pkFilePath = "../" + nameBD + "/" + table + "/" + table + "_pk_sequence.txt";
         string pkValue = fileread(pkFilePath);
-
-        if (pkValue.empty()) { // Проверка успешности чтения значения первичного ключа
+        if (pkValue.empty()) {
             cerr << "Ошибка! Не удалось прочитать значение первичного ключа!" << endl;
             return;
         }
@@ -204,13 +144,7 @@ struct BaseDate {
         int pkInt = stoi(pkValue) + 1;
         filerec(pkFilePath, to_string(pkInt));
 
-        string lockFilePath = "../" + nameBD + "/" + table + "/" + table + "_lock.txt";
-        string lockStatus = fileread(lockFilePath);
-        if (lockStatus != "open") {
-            cerr << "Ошибка! Таблица не открыта!" << endl;
-            return;
-        }
-
+        // Обработка количества файлов
         string fileCountStr;
         if (!fileCountHash.get(table, fileCountStr)) {
             cerr << "Ошибка: Не удалось получить количество файлов для таблицы " << table << endl;
@@ -219,10 +153,11 @@ struct BaseDate {
 
         int fileCount = stoi(fileCountStr);
         string csvFilePath = "../" + nameBD + "/" + table + "/" + to_string(fileCount) + ".csv";
-        int lineCount = countingLine(csvFilePath);
 
+        // Проверка количества строк
+        int lineCount = countingLine(csvFilePath);
         if (lineCount >= rowLimits) {
-            ++fileCount;
+            ++fileCount; // Создаем новый файл
             fileCountHash.remove(table);
             fileCountHash.insert(table, to_string(fileCount));
             csvFilePath = "../" + nameBD + "/" + table + "/" + to_string(fileCount) + ".csv";
@@ -235,42 +170,75 @@ struct BaseDate {
         }
 
         if (lineCount == 0) {
-            string columnString;
+            string columnString; // Запись заголовков в файл, если он пуст
             if (!coloumnHash.get(table, columnString)) {
                 cerr << "Ошибка! Не удалось получить названия столбцов для таблицы " << table << endl;
                 return;
             }
             csvFile << columnString << endl;
         }
-        csvFile << pkInt << ',' << values << '\n';
+
+        // Запись значения с первичным ключом
+        csvFile << pkInt << ',' << values << '\n'; 
         csvFile.close();
+
         cout << "Команда выполнена успешно!" << endl;
     }
 
-    void delet(string& command) { // Удаление данных
-        string table, conditions;
-        size_t pos = command.find_first_of(' ');
+    void insert(string& command) {
+        string valuesPrefix = "VALUES";
+        size_t position = command.find_first_of(' ');
 
-        if (pos != string::npos) {
-            table = command.substr(0, pos);
-            conditions = command.substr(pos + 1);
-        } else {
-            table = command;
-        }
-
-        if (!tablesname.find(table)) { // Проверка на существование таблицы
-            cout << "Ошибка! Нет такой таблицы." << endl;
+        if (position == string::npos) {
+            cout << "Ошибка! Синтаксис команды нарушен!" << endl;
             return;
         }
 
-        if (conditions.empty()) {
-            delAll(table);
-        } else if (conditions.substr(0, 6) == "WHERE ") {
-            conditions.erase(0, 6);
-            delWhereProcess(conditions, table);
-        } else {
-            cout << "Ошибка! Ожидался 'WHERE'." << endl;
+        string table = command.substr(0, position); // Извлечение названия таблицы
+        command.erase(0, position + 1); // Удаление названия таблицы из команды
+
+        // Удаление пробелов до и после названия таблицы
+        table.erase(remove_if(table.begin(), table.end(), ::isspace), table.end());
+
+        if (!tablesname.find(table)) {
+            cout << "Ошибка! Таблица не найдена!" << endl;
+            return;
         }
+
+        if (command.substr(0, valuesPrefix.size()) != valuesPrefix) {
+            cout << "Ошибка! Префикс VALUES отсутствует!" << endl;
+            return;
+        }
+
+        command.erase(0, valuesPrefix.size() + 1); // Удаление префикса VALUES и пробела
+        position = command.find_first_of(')'); 
+
+        if (position == string::npos || command.empty() || 
+            command.front() != '(' || command.back() != ')') {
+            cout << "Ошибка! Синтаксис команды нарушен!" << endl;
+            return;
+        }
+
+        command.erase(0, 1); // Удаление открывающей скобки
+        command.pop_back();   // Удаление закрывающей скобки
+        command.erase(remove_if(command.begin(), command.end(), ::isspace), command.end()); // Удаление пробелов
+
+        string columnData; // Получаем названия столбцов и проверяем количество
+        if (!coloumnHash.get(table, columnData)) {
+            cerr << "Ошибка! Не удалось получить названия столбцов для таблицы " << table << endl;
+            return;
+        }
+
+        // Подсчет количества столбцов
+        int countColumns = count(columnData.begin(), columnData.end(), ',') + 1; // Количество столбцов
+        int countValues = count(command.begin(), command.end(), ',') + 1; // Количество значений
+
+        if (countColumns != countValues + 1) { // +1 для первичного ключа
+            cout << "Ошибка! Количество значений не совпадает с количеством колонок!" << endl;
+            return;
+        }
+
+        checkInsert(table, command); // Вызов функции вставки
     }
 
     void delAll(string& table) { // Удаление всех строк из таблицы
@@ -402,13 +370,13 @@ struct BaseDate {
         cout << "Команда выполнена успешно!" << endl;
     }
 
-    void commands(string& command, BaseDate& db) {
+    void commands(string& command) { // Функция для поддержки команд
         if (command.substr(0, 11) == "INSERT INTO") {
             command.erase(0, 12);
-            db.insert(command); // Вызываем через объект
+            insert(command);
         } else if (command.substr(0, 11) == "DELETE FROM") {
             command.erase(0, 12);
-            db.delet(command); // Вызываем через объект
+            //db.delet(command); // Вызываем через объект
         } else if (command == "STOP") {
             exit(0);
         } else {
@@ -416,3 +384,20 @@ struct BaseDate {
         }
     }
 };
+
+int main() {
+
+    BaseDate airport;
+
+    airport.parser();
+    airport.createdirect();
+
+    string command;
+    while (true) {
+        cout << endl << "Вводите команду: ";
+        getline(cin, command);
+        airport.commands(command);
+    }
+
+    return 0;
+}
