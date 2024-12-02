@@ -44,6 +44,12 @@ int countingLine (const string& filename) {
     return linecout;
 }
 
+struct Condition {
+    string column;
+    string value;
+    string logicalOp; // AND или OR
+};
+
 struct BaseDate {
     string nameBD; // База данных самолетов
     int rowLimits; // Установленный лимит
@@ -69,11 +75,13 @@ struct BaseDate {
                 tablesname.pushBack(tableName);
 
                 // Сбор колонок с первичным ключом
-                string columnString = tableName + "_pk,"; // Добавляем первичный ключ
+                string columnString = ""; // Обнуляем строку
                 for (auto& column : item.value().items()) {
                     columnString += column.value().get<string>() + ",";
                 }
-                if (!columnString.empty()) columnString.pop_back();
+                // Добавляем первичный ключ
+                columnString = tableName + "_pk," + columnString; 
+                if (!columnString.empty()) columnString.pop_back(); // Убираем последний запятую
                 coloumnHash.insert(tableName, columnString);
                 fileCountHash.insert(tableName, "1");
             }
@@ -141,8 +149,10 @@ struct BaseDate {
             return;
         }
 
-        int pkInt = stoi(pkValue) + 1;
-        filerec(pkFilePath, to_string(pkInt));
+        int pkInt = stoi(pkValue); // Текущий первичный ключ (не увеличиваем здесь)
+        
+        // Меняем на 1, так как записи начинаются с 1
+        filerec(pkFilePath, to_string(pkInt + 1));
 
         // Обработка количества файлов
         string fileCountStr;
@@ -241,203 +251,131 @@ struct BaseDate {
         checkInsert(table, command); // Вызов функции вставки
     }
 
-    void delAll(string& table) { // Удаление всех строк из таблицы, кроме заголовков
-        string lockFilePath = "../" + nameBD + "/" + table + "/" + table + "_lock.txt";
-        filerec(lockFilePath, "close"); // Блокируем таблицу
-
-        // Получаем количество файлов для таблицы
-        string fileCountStr;
-        if (!fileCountHash.get(table, fileCountStr)) {
-            cerr << "Ошибка: Не удалось получить количество файлов для таблицы " << table << endl;
-            return;
-        }
-
-        int fileCount = stoi(fileCountStr);
-        for (int i = 1; i <= fileCount; ++i) {
-            string csvFilePath = "../" + nameBD + "/" + table + "/" + to_string(i) + ".csv";
-            
-            // Открываем файл для чтения
-            ifstream inFile(csvFilePath);
-            ofstream outFile(csvFilePath + ".tmp"); // Временный файл для записи
-
-            if (!inFile.is_open() || !outFile.is_open()) {
-                cerr << "Ошибка: Не удалось открыть файл " << csvFilePath << endl;
-                continue;
-            }
-
-            string line;
-            int lineNumber = 0;
-
-            // Считываем строки и записываем только заголовок
-            while (getline(inFile, line)) {
-                if (lineNumber == 0) {
-                    outFile << line << endl; // Записываем заголовок
-                }
-                lineNumber++;
-            }
-
-            inFile.close();
-            outFile.close();
-
-            // Заменяем оригинальный файл временным
-            rename((csvFilePath + ".tmp").c_str(), csvFilePath.c_str());
-        }
-
-        // Обновление первичного ключа
-        string pkFilePath = "../" + nameBD + "/" + table + "/" + table + "_pk_sequence.txt";
-        filerec(pkFilePath, "1"); // Сбрасываем первичный ключ на 1
-
-        filerec(lockFilePath, "open"); // Разблокируем таблицу
-        cout << "Все строки таблицы удалены, первичный ключ обновлён!" << endl;
-    }
-
     void delWhere(string& conditions, string& table) {
-        if (conditions.empty()) {
-            cout << "Ошибка! Неправильное условие!" << endl;
-            return;
+        // Разделение условий на подусловия
+        Hash_table conditionTable; // Используем хэш-таблицу для условий
+
+        stringstream conditionStream(conditions);
+        string condition;
+        while (getline(conditionStream, condition, ' ')) {
+            if (condition != "AND" && condition != "OR") {
+                Condition cond;
+                cond.column = condition; // Имя колонки
+                conditionStream >> condition; // Получаем оператор
+                if (condition != "=") {
+                    cerr << "Ошибка! Оператор " << condition << " не поддерживается!" << endl;
+                    return;
+                }
+
+                conditionStream >> cond.value; // Получаем значение
+                // Вставляем условие в хэш-таблицу
+                conditionTable.insert(cond.column, cond.value);
+            }
+            string logicalOp;
+            conditionStream >> logicalOp; // Получаем логический оператор (AND, OR)
+            if (logicalOp == "AND" || logicalOp == "OR") {
+                conditionTable.insert(logicalOp, ""); // Добавление логического оператора
+            } else {
+                conditionStream.putback(' '); // Возврат символа в поток
+            }
         }
 
-        size_t wherePos = conditions.find("WHERE ");
-        if (wherePos == string::npos) {
-            cout << "Ошибка! Отсутствует условие WHERE!" << endl;
-            return;
-        }
-
-        string condition = conditions.substr(wherePos + 6); // Извлекаем условие после 'WHERE '
-
-        // Убираем пробелы
-        condition.erase(remove_if(condition.begin(), condition.end(), ::isspace), condition.end());
-
-        string logicalOp = ""; // Определение логического оператора
-        size_t logicOpPos = condition.find("AND");
-        if (logicOpPos == string::npos) {
-            logicOpPos = condition.find("OR");
-            if (logicOpPos != string::npos) logicalOp = "OR";
-        } else {
-            logicalOp = "AND";
-        }
-
-        string column, value; // Разделяем колонку и значение
-        size_t eqPos = condition.find('=');
-        if (eqPos == string::npos) {
-            cout << "Ошибка! Неправильное условие!" << endl;
-            return;
-        }
-        column = condition.substr(0, eqPos);
-        value = condition.substr(eqPos + 1);
-        
-        // Удаляем одинарные кавычки из значения
-        if (!value.empty() && value.front() == '\'' && value.back() == '\'') {
-            value = value.substr(1, value.size() - 2);
-        }
-
-        string columnData; // Удаление строк
-        if (!coloumnHash.get(table, columnData)) {
-            cout << "Ошибка! Нет таких столбцов в таблице!" << endl;
-            return;
-        }
-
-        deleteRows(table, column, value, logicalOp);
+        executeDeleteWithConditions(conditionTable, table);
     }
 
-    void deleteRows(string& table, string& column, string& value, const string& logicalOp = "") {
-        // Блокировка таблицы
-        string lockFilePath = "../" + nameBD + "/" + table + "/" + table + "_lock.txt";
-        filerec(lockFilePath, "close");
-
-        // Проверка наличия столбца
-        string columnData;
-        if (!coloumnHash.get(table, columnData)) {
-            cout << "Ошибка! Нет таких столбцов в таблице!" << endl;
-            filerec(lockFilePath, "open");
+    void executeDeleteWithConditions(Hash_table& conditions, const string& table) {
+        string filepath;
+        int index = tablesname.getindex(table);
+        if (index == -1) {
+            cout << "Ошибка, нет такой таблицы!" << endl;
             return;
         }
 
-        // Получение индекса столбца
-        int columnIndex = -1;
-        stringstream ss(columnData);
-        string colName;
-        int currentIndex = 0;
+        // Проверка блокировки
+        if (checkLockTable(table)) {
+            filepath = "../" + nameBD + "/" + table + "/" + table + "_lock.txt";
+            filerec(filepath, "close");
 
-        while (getline(ss, colName, ',')) {
-            if (colName == column) {
-                columnIndex = currentIndex;
-                break;
-            }
-            currentIndex++;
-        }
+            // Получение индексов столбцов
+            Hash_table columnIndexHash;
+            for (const string& condCol : { /* ваши условия для колонок */ }) { // Массив колонок условий
+                string columns;
+                if (!coloumnHash.get(condCol, columns)) {
+                    cerr << "Ошибка! Не удалось получить названия столбцов для таблицы " << table << endl;
+                    return;
+                }
 
-        if (columnIndex == -1) {
-            cout << "Ошибка! Нет такого столбца!" << endl;
-            filerec(lockFilePath, "open");
-            return;
-        }
-
-        // Чтение количества файлов
-        string fileCountStr;
-        if (!fileCountHash.get(table, fileCountStr)) {
-            cerr << "Ошибка: Не удалось получить количество файлов для таблицы " << table << endl;
-            filerec(lockFilePath, "open");
-            return;
-        }
-
-        int fileCount = stoi(fileCountStr);
-        for (int i = 1; i <= fileCount; ++i) {
-            string csvFilePath = "../" + nameBD + "/" + table + "/" + to_string(i) + ".csv";
-            string csvContent = fileread(csvFilePath);
-            stringstream csvStream(csvContent);
-            string newCsvContent;
-            string line;
-
-            while (getline(csvStream, line)) {
-                stringstream lineStream(line);
-                string token;
-                int currentColumnIndex = 0;
-                bool shouldRemove = false;
-
-                while (getline(lineStream, token, ',')) {
-                    bool matchFound = (currentColumnIndex == columnIndex && token == value);
-                    if ((logicalOp == "AND" && matchFound) || (logicalOp == "OR" && !matchFound)) {
-                        shouldRemove = (logicalOp == "OR") ? false : true;
+                stringstream ss(columns);
+                string col;
+                int colIndex = 0;
+                while (getline(ss, col, ',')) {
+                    if (col == condCol) {
+                        columnIndexHash.insert(condCol, to_string(colIndex));
                         break;
                     }
-                    currentColumnIndex++;
-                }
-
-                // Сохраняем строку, если она не подлежит удалению
-                if (!shouldRemove) {
-                    newCsvContent += line + "\n";
+                    colIndex++;
                 }
             }
 
-            filerec(csvFilePath, newCsvContent); // Обновляем файл CSV
-        }
+            // Удаление строк из файлов
+            int fileCount = stoi(fileCountHash.get(table));
+            for (int fileIndex = 1; fileIndex <= fileCount; ++fileIndex) {
+                filepath = "../" + nameBD + "/" + table + "/" + to_string(fileIndex) + ".csv";
+                string csvData = fileread(filepath);
+                stringstream csvStream(csvData);
+                string newCsvData;
+                string row;
 
-        filerec(lockFilePath, "open"); // Разблокируем таблицу
-        cout << "Команда выполнена успешно!" << endl;
+                while (getline(csvStream, row)) {
+                    bool shouldRemove = checkRowAgainstConditions(row, columnIndexHash, conditions);
+                    if (!shouldRemove) {
+                        newCsvData += row + "\n";
+                    }
+                }
+
+                filerec(filepath, newCsvData);
+            }
+
+            filepath = "../" + nameBD + "/" + table + "/" + table + "_lock.txt";
+            filerec(filepath, "open");
+            cout << "Команда выполнена!" << endl;
+        } else {
+            cout << "Ошибка, таблица используется другим пользователем!" << endl;
+        }
     }
 
-    void commands(string& command) { // Функция для поддержки команд
+    bool checkRowAgainstConditions(const string& row, Hash_table& columnIndexes, Hash_table& conditions) {
+        stringstream ss(row);
+        string token;
+        string column;
+        bool result = true; // Базовое значение для AND
+
+        while (getline(ss, token, ',')) {
+            // Проверяем соответствие условий с соответствующими значениями
+            if (columnIndexes.get(column, token)) { // Если индекс колонки существует
+                string expectedValue;
+                conditions.get(column, expectedValue);
+                result = (token == expectedValue); // Проверка равенства значения
+                if (!result) break; // Прекращаем проверку при несоответствии
+            }
+        }
+
+        return result; // Вернуть результат проверки
+    }
+
+    void commands(string& command) {
         if (command.substr(0, 11) == "INSERT INTO") {
             command.erase(0, 12);
             insert(command);
         } else if (command.substr(0, 11) == "DELETE FROM") {
-            command.erase(0, 12); // Удаление "DELETE FROM"
+            command.erase(0, 12);
             size_t wherePos = command.find("WHERE");
-            string table, conditions;
-
             if (wherePos != string::npos) {
-                table = command.substr(0, wherePos); // Имя таблицы
-                conditions = command.substr(wherePos); // Условия
+                string table = command.substr(0, wherePos); // Название таблицы
+                command.erase(0, wherePos + 6); // Удаление 'WHERE '
+                delWhere(command, table);
             } else {
-            table = command; // Если нет условий, то полное имя таблицы
-            conditions = ""; // Условия пустое
-            }
-        
-            if (conditions.empty()) {
-                delAll(table); // Если нет условий WHERE, то удаляем все строки
-                } else {
-                delWhere(conditions, table); // Удаление с условиями
+                cout << "Ошибка! Отсутствует условие WHERE!" << endl;
             }
         } else if (command == "STOP") {
             exit(0);
