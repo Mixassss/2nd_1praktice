@@ -5,26 +5,29 @@
 
 const size_t SIZE = 100; //Размер хэш-таблицы
 
+template <typename Key, typename Value>
 struct HNode {
-    string key;
-    string value;
+    Key key;
+    Value value;
     HNode* next;
 
      // Конструктор для удобства создания узлов
-    HNode(const string& k, const string& v) : key(k), value(v), next(nullptr) {}
+    HNode(const Key& k, const Value& v) : key(k), value(v), next(nullptr) {}
 };
 
+template <typename Key, typename Value>
 struct Hash_table {
-    HNode* table[SIZE];
+    HNode<Key, Value>* table[SIZE];
     int sizetable = 0;
 
     Hash_table(); //Инициализация хэш таблицы
     ~Hash_table(); //Деконструктор
 
-    int hashFunction(const string& key); // Хеш-функция
-    void insert(string &key, const string &value); //Функция долбавления элемента
-    bool get(const string& key, string& value);
-    bool remove(const string& key);
+    int hashFunction(const Key& key); // Хеш-функция
+    void insert(const Key& key, const Value& value); //Функция долбавления элемента
+    bool get(const Key& key, Value& value);
+    bool remove(const Key& key);
+    int size() const;
 };
 
 #include "../src/hash_table.cpp"

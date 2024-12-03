@@ -1,25 +1,30 @@
 #include "../include/list.h"
 
-Node::Node(string value) {
+template <typename T>
+Node<T>::Node(string value) {
     data = value;
     next = nullptr;
 } 
 
-SinglyLinkedList::SinglyLinkedList() {
+template <typename T>
+SinglyLinkedList<T>::SinglyLinkedList() {
     head = nullptr; //Если список не содержит элементов, то присваиваем нулевое значение
 }
 
-SinglyLinkedList::~SinglyLinkedList() {
+template <typename T>
+SinglyLinkedList<T>::~SinglyLinkedList() {
     while(!isEmpty()) {
         popFront(); //Вызывает список, после которого очищает память
     }
 }
 
-bool SinglyLinkedList::isEmpty() const {
+template <typename T>
+bool SinglyLinkedList<T>::isEmpty() const {
     return elementCount == 0;
 }
 
-void SinglyLinkedList::print() {
+template <typename T>
+void SinglyLinkedList<T>::print() {
     Node* current = head;
     while (current) {
         cout << current->data << " ";
@@ -27,14 +32,17 @@ void SinglyLinkedList::print() {
     }
     cout << endl;
 }
-void SinglyLinkedList::pushFront(string value) { 
+
+template <typename T>
+void SinglyLinkedList<T>::pushFront(T value) { 
     Node* newNode = new Node(value);
     newNode->next = head; //Следующий узел, становится текущей головой списка
     head = newNode;
     elementCount++;
 }
 
-void SinglyLinkedList::pushBack(string value) {
+template <typename T>
+void SinglyLinkedList<T>::pushBack(T value) {
     Node* newNode = new Node(value);
     if(head == nullptr) { //Условие если список пуст
         head = newNode;
@@ -48,7 +56,8 @@ void SinglyLinkedList::pushBack(string value) {
     elementCount++;
 }
 
-void SinglyLinkedList::popFront() {
+template <typename T>
+void SinglyLinkedList<T>::popFront() {
     if(head == nullptr) return;
     Node* nextHead = head->next; //Создание временной переменной, для сохранения
     delete head;
@@ -56,7 +65,8 @@ void SinglyLinkedList::popFront() {
     elementCount--;
 }
 
-void SinglyLinkedList::popBack() {
+template <typename T>
+void SinglyLinkedList<T>::popBack() {
     if (head == nullptr) return; // Если список пуст
     if (head->next == nullptr) { // Если один элемент
         delete head;
@@ -72,7 +82,8 @@ void SinglyLinkedList::popBack() {
     elementCount--;
 }
 
-void SinglyLinkedList::removeAt(string value) {
+template <typename T>
+void SinglyLinkedList<T>::removeAt(T value) {
     if (isEmpty()) return;
     if (head->data == value) {
         popFront();
@@ -90,7 +101,8 @@ void SinglyLinkedList::removeAt(string value) {
     }
 }
 
-bool SinglyLinkedList::find(string value) {
+template <typename T>
+bool SinglyLinkedList<T>::find(T value) {
     Node* current = head;
     while (current != nullptr) {
         if (current->data == value) {
@@ -101,13 +113,15 @@ bool SinglyLinkedList::find(string value) {
     return false;
 }
 
-void SinglyLinkedList::clearSList() {
+template <typename T>
+void SinglyLinkedList<T>::clearSList() {
     while (!isEmpty()) {
         popFront();
     }
 }
 
-string SinglyLinkedList::getElementAt(size_t index) const {
+template <typename T>
+T SinglyLinkedList<T>::getElementAt(size_t index) {
     Node* current = head;
     size_t currentIndex = 0;
     while (current != nullptr) {
@@ -120,7 +134,22 @@ string SinglyLinkedList::getElementAt(size_t index) const {
     return ""; // Возвращаем пустую строку, если индекс вне диапазона
 }
 
-Node* SinglyLinkedList::getHead() const {
+template <typename T>
+int SinglyLinkedList<T>::getIndex(T& value) const {
+    Node* current = head;
+    int index = 0;
+    while (current) {
+        if (current->data == value) {
+            return index; // Возвращаем индекс, если значение найдено
+        }
+        current = current->next;
+        index++;
+    }
+    return -1; // Возвращаем -1, если значение не найдено
+}
+
+template <typename T>
+Node<T>* SinglyLinkedList<T>::getHead() const {
     return head;
 }
 

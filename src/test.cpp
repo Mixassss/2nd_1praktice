@@ -44,18 +44,18 @@ void filerec (const string& filename, const string& data) { // Производ�
     fout.close();
 }
 
-struct DataBase {
-    string nameBD; // название БД
-    int rowLimits; // лимит строк
-    SinglyLinkedList tablesname; // Список названий таблиц
-    Hash_table coloumnHash; // Хэш таблица для работы со столбцами
-    Hash_table fileCountHash; // Хэш таблица для количества файлов таблиц
+struct BaseData {
+    string nameBD; // Название БД
+    int rowLimits; // Лимит строк
+    SinglyLinkedList<string> tablesname; // Список названий таблиц
+    Hash_table<string, string> coloumnHash; // Хэш таблица для работы со столбцами
+    Hash_table<string, int> fileCountHash; // Хэш таблица для количества файлов таблиц
 
-    struct Where { // структура для фильтрации
+    struct Filters { // Структура для фильтрации
         string table;
-        string column;
+        string colona;
         string value;
-        string logicalOP;
+        string logicOP;
         bool check; // В частности для select, проверка условия(если просто условие - true, если условиестолбец - false)
     };
 
@@ -85,7 +85,7 @@ struct DataBase {
                 columnString = tableName + "_pk," + columnString; 
                 if (!columnString.empty()) columnString.pop_back(); // Убираем последний запятую
                 coloumnHash.insert(tableName, columnString);
-                fileCountHash.insert(tableName, "1");
+                fileCountHash.insert(tableName, 1);
             }
         } else {
             cerr << "Структура не найдена!" << endl;
@@ -116,62 +116,47 @@ struct DataBase {
                 csvFile.close();
             }
 
-            // Файл блокировки
-            string lockFilePath = tableDir + "/" + tableName + "_lock.txt";
-            ofstream lockFile(lockFilePath);
-            if (lockFile.is_open()) {
-                lockFile << "open";
-                lockFile.close();
-            }
-
-            // Файл первичного ключа
-            string pkFilePath = tableDir + "/" + tableName + "_pk_sequence.txt";
-            ofstream pkFile(pkFilePath);
-            if (pkFile.is_open()) {
-                pkFile << "1"; 
-                pkFile.close();
-            } else {
-                cerr << "Ошибка! Не удалось открыть файл для записи: " << pkFilePath << endl;
-            }
+            createLockFile(tableDir, tableName);
+            createPKFile(tableDir, tableName);
         }
     }
 
-    void checkcommand(string& command) { // ф-ия фильтрации команд
-        if (command.substr(0, 11) == "insert into") {
-            command.erase(0, 12);
-            Insert(command);
-        } else if (command.substr(0, 11) == "delete from") {
-            command.erase(0, 12);
-            isValidDel(command);
-        } else if (command.substr(0, 6) == "select") {
-            command.erase(0, 7);
-            isValidSelect(command);
-        } else if (command == "exit") {
-            exit(0);
-        } else cout << "Ошибка, неизвестная команда!" << endl; 
+    void createLockFile(const string& dir, const string& tableName) {
+        ofstream lockFile(dir + "/" + tableName + "_lock.txt");
+        lockFile << "open";
+    }
+
+    void createPKFile(const string& dir, const string& tableName) {
+        ofstream pkFile(dir + "/" + tableName + "_pk_sequence.txt");
+        if (pkFile.is_open()) {
+            pkFile << "1"; 
+            pkFile.close();
+        } else {
+            cerr << "Ошибка! Не удалось открыть файл для записи! " << endl;
+        }
     }
 
     // ф-ии делита
-    void isValidDel(string& command) { // ф-ия обработки команды DELETE
+    void Delete(string& command) { // ф-ия обработки команды DELETE
         string table, conditions;
         int position = command.find_first_of(' ');
         if (position != -1) {
             table = command.substr(0, position);
             conditions = command.substr(position + 1);
         } else table = command;
-        if (nametables.getindex(table) != -1) { // проверка таблицы
+        if (tablesname.getIndex(table) != -1) { // проверка таблицы
             if (conditions.empty()) { // если нет условий, удаляем все
-                del(table);
+                delAll(table);
             } else {
-                if (conditions.substr(0, 6) == "where ") { // проверка наличия where
+                if (conditions.substr(0, 6) == "WHERE ") { // проверка наличия where
                     conditions.erase(0, 6);
-                    SinglyLinkedList<Where> cond;
-                    Where where;
-                    position = conditions.find_first_of(' '); ////
+                    SinglyLinkedList<Filters> cond;
+                    Filters filter;
+                    position = conditions.find_first_of(' ');
                     if (position != -1) { // проверка синтаксиса
-                        where.column = conditions.substr(0, position);
+                        filter.column = conditions.substr(0, position);
                         conditions.erase(0, position+1);
-                        int index = nametables.getindex(table);
+                        int index = tablesname.getIndex(table);
                         string str = stlb.getvalue(index);
                         stringstream ss(str);
                         bool check = false;
@@ -188,14 +173,14 @@ struct DataBase {
                                     conditions.erase(0, position+1);
                                     cond.push_back(where);
                                     position = conditions.find_first_of(' ');
-                                    if ((position != -1) && (conditions.substr(0, 2) == "or" || conditions.substr(0, 3) == "and")) {
+                                    if ((position != -1) && (conditions.substr(0, 2) == "OR" || conditions.substr(0, 3) == "AND")) {
                                         where.logicalOP = conditions.substr(0, position);
                                         conditions.erase(0, position + 1);
                                         position = conditions.find_first_of(' ');
                                         if (position != -1) {
                                             where.column = conditions.substr(0, position);
                                             conditions.erase(0, position+1);
-                                            index = nametables.getindex(table);
+                                            index = tablesname.getIndex(table);
                                             str = stlb.getvalue(index);
                                             stringstream iss(str);
                                             bool check = false;
@@ -222,139 +207,200 @@ struct DataBase {
         } else cout << "Ошибка, нет такой таблицы!" << endl;
     }
 
-    void del(string& table) { // ф-ия удаления всех строк таблицы
-        string filepath;
-        int index = nametables.getindex(table);
+    void delAll(string& table) { // ф-ия удаления всех строк таблицы
+        string fin;
+        int index = tablesname.getIndex(table); // Получить индекс таблицы из списка
+        string columnString; // Строка для хранения заголовков столбцов
+
         if (checkLockTable(table)) {
-            filepath = "../" + nameBD + "/" + table + "/" + table + "_lock.txt";
-            foutput(filepath, "close");
-            
-            // очищаем все файлы
-            int copy = fileindex.getvalue(index);
-            while (copy != 0) {
-                filepath = "../" + nameBD + "/" + table + "/" + to_string(copy) + ".csv";
-                foutput(filepath, "");
-                copy--;
+            lockTable(table, false); // Закрытие таблицы для работы
+            int fileCount;
+            if (!fileCountHash.get(table, fileCount)) {
+                cerr << "Не удалось получить количество файлов для таблицы: " << table << endl;
+                return;
             }
 
-            foutput(filepath, stlb.getvalue(index)+"\n"); // добавляем столбцы в 1.csv
+            // Цикл для очистки всех файлов таблицы
+            for (int all = 1; all <= fileCount; ++all) {
+                fin = "../" + nameBD + "/" + table + "/" + to_string(all) + ".csv";
+                filerec(fin, ""); // Очищаем содержимое файла
+            }
 
-            filepath = "../" + nameBD + "/" + table + "/" + table + "_lock.txt";
-            foutput(filepath, "open");
-            cout << "Команда выполнена!" << endl;
-        } else cout << "Ошибка, таблица используется другим пользователем!" << endl;
+             // Записываем заголовки в 1.csv
+            fin = "../" + nameBD + "/" + table + "/1.csv";
+            filerec(fin, columnString + "\n");
+
+            lockTable(table, true); // Снова открываем таблицу
+            cout << "Команда выполнена успешно!" << endl;
+        } else {
+            cout << "Ошибка! Таблица используется другим пользователем!" << endl;
+        }
     }
 
-    void delWithValue(string& table, string& stolbec, string& values) { // ф-ия удаления строк таблицы по значению
-        string filepath;
-        int index = nametables.getindex(table);
+    void delWithValue(string& table, string& stolb, string& values) { // ф-ия удаления строк таблицы по значению
+        string fin;
+        int index = tablesname.getIndex(table);
         if (checkLockTable(table)) {
-            filepath = "../" + nameBD + "/" + table + "/" + table + "_lock.txt";
-            foutput(filepath, "close");
+            lockTable(table, false); // Закрытие таблицы для работы
 
-            // нахождение индекса столбца в файле
-            string str = stlb.getvalue(index);
-            stringstream ss(str);
-            int stolbecindex = 0;
-            while (getline(ss, str, ',')) {
-                if (str == stolbec) break;
-                stolbecindex++;
+            string colonaValues;
+            if (!coloumnHash.get(table, colonaValues)) {
+                cerr << "Не удалось получить значения столбца для таблицы: " << table << endl;
+                lockTable(table, true); // Открываем таблицу
+                return;
             }
 
-            // удаление строк
-            int copy = fileindex.getvalue(index);
-            while (copy != 0) {
-                filepath = "../" + nameBD + "/" + table + "/" + to_string(copy) + ".csv";
-                string text = fileread(filepath);
-                stringstream stroka(text);
-                string filteredlines;
-                while (getline(stroka, text)) {
-                    stringstream iss(text);
+            // Извлекаем индекс столбца
+            stringstream ss(colonaValues);
+            string columnValue;
+            int colonaIndex = -1;
+            int thisIndex = 0;
+
+            while (getline(ss, columnValue, ',')) {
+                if (columnValue == stolb) {
+                    colonaIndex = thisIndex;
+                    break;
+                }
+                thisIndex++;
+            }
+
+            if (colonaIndex == -1) {
+                cerr << "Столбец не найден!" << endl;
+                lockTable(table, true); // Открываем таблицу
+                return;
+            }
+
+            int fileCount;
+            if (!fileCountHash.get(table, fileCount)) {
+                cerr << "Не удалось получить количество файлов для таблицы: " << table << endl;
+                lockTable(table, true); // Открываем таблицу
+                return;
+            }
+
+            int copyCount = fileCount; // Получаем количество файлов таблицы
+            while (copyCount > 0) {
+                fin = "../" + nameBD + "/" + table + "/" + to_string(copyCount) + ".csv";
+                string text = fileread(fin);
+                stringstream lineStream(text);
+                string filteredLines;
+                string textLine;
+
+                while (getline(lineStream, textLine)) {
+                    stringstream tokenStream(textLine);
                     string token;
-                    int currentIndex = 0;
                     bool shouldRemove = false;
-                    while (getline(iss, token, ',')) {
-                        if (currentIndex == stolbecindex && token == values) {
+                    int thisColumnIndex = 0;
+
+                    while (getline(tokenStream, token, ',')) {
+                        if (thisColumnIndex == colonaIndex && token == values) {
                             shouldRemove = true;
                             break;
                         }
-                        currentIndex++;
+                        thisColumnIndex++;
                     }
-                    if (!shouldRemove) filteredlines += text + "\n"; 
+                if (!shouldRemove) {
+                    filteredLines += textLine + "\n"; 
                 }
-                foutput(filepath, filteredlines);
-                copy--;
             }
 
-            filepath = "../" + nameBD + "/" + table + "/" + table + "_lock.txt";
-            foutput(filepath, "open");
-            cout << "Команда выполнена!" << endl;
-        } else cout << "Ошибка, таблица используется другим пользователем!" << endl;
+            filerec(fin, filteredLines);
+            copyCount--;
+        }
+
+        lockTable(table, true); // Снова открываем таблицу
+        cout << "Команда выполнена успешно!" << endl;
+        } else {
+            cout << "Ошибка, таблица используется другим пользователем!" << endl;
+        }
     }
 
-    void delWithLogic(SinglyLinkedList<Where>& conditions, string& table) { // ф-ия удаления строк таблицы с логикой
-        string filepath;
-        int index = nametables.getindex(table);
+    void delWithLogic(Hash_table<string, Filters>& conditions, string& table) { // ф-ия удаления строк таблицы с логикой
+        string fin;
+        int index = tablesname.getIndex(table);
         if (checkLockTable(table)) {
-            filepath = "../" + nameBD + "/" + table + "/" + table + "_lock.txt";
-            foutput(filepath, "close");
+            lockTable(table, false); // Закрытие таблицы для работы
 
-            // нахождение индекса столбцов в файле
-            SinglyLinkedList<int> stlbindex;
-            for (int i = 0; i < conditions.size; ++i) {
-                string str = stlb.getvalue(index);
-                stringstream ss(str);
-                int stolbecindex = 0;
-                while (getline(ss, str, ',')) {
-                    if (str == conditions.getvalue(i).column) {
-                        stlbindex.push_back(stolbecindex);
+                // нахождение индекса столбцов в файле
+                SinglyLinkedList<int> colonaIndexes;
+                string columnValue;
+                for (int i = 0; i < conditions.size(); ++i) {
+                if (coloumnHash.get(table, columnValue)) {
+                    stringstream ss(columnValue);
+                    string column;
+                    int idx = 0;
+                while (getline(ss, column, ',')) {
+                    if (column == conditions.get(i).colona) {
+                        colonaIndexes.pushBack(idx);
                         break;
                     }
-                    stolbecindex++;
+                    idx++;
                 }
+            } else {
+                cerr << "Столбцы не найдены для таблицы: " << table << endl;
+                return;
+            }
+        }
+            
+            // Удаление строк
+            int copyCount;
+            if (!fileCountHash.get(table, copyCount)) {
+                cerr << "Не удалось получить количество файлов для таблицы: " << table << endl;
+                return;
             }
 
-            // удаление строк
-            int copy = fileindex.getvalue(index);
-            while (copy != 0) {
-                filepath = "../" + nameBD + "/" + table + "/" + to_string(copy) + ".csv";
-                string text = finput(filepath);
+            while (copyCount > 0) {
+                fin = "../" + nameBD + "/" + table + "/" + to_string(copyCount) + ".csv";
+                string text = fileread(fin);
                 stringstream stroka(text);
                 string filteredRows;
-                while (getline(stroka, text)) {
+                string row;
+
+                while (getline(stroka, row)) {
                     SinglyLinkedList<bool> shouldRemove;
-                    for (int i = 0; i < stlbindex.size; ++i) {
-                        stringstream iss(text);
+                    for (int i = 0; i < colonaIndexes.size(); ++i) {
+                        stringstream iss(row);
                         string token;
                         int currentIndex = 0;
                         bool check = false;
-                        while (getline(iss, token, ',')) { 
-                            if (currentIndex == stlbindex.getvalue(i) && token == conditions.getvalue(i).value) {
+
+                        while (getline(iss, token, ',')) {
+                            if (currentIndex == colonaIndexes.getElementAt(i) && token == conditions.get(i).value) {
                                 check = true;
                                 break;
                             }
                             currentIndex++;
                         }
-                        if (check) shouldRemove.push_back(true);
-                        else shouldRemove.push_back(false);
+                        shouldRemove.pushBack(check);
                     }
-                    if (conditions.getvalue(1).logicalOP == "and") { // Если оператор И
-                        if (shouldRemove.getvalue(0) && shouldRemove.getvalue(1));
-                        else filteredRows += text + "\n";
-                    } else { // Если оператор ИЛИ
-                        if (!(shouldRemove.getvalue(0)) && !(shouldRemove.getvalue(1))) filteredRows += text + "\n";
+
+                    // Проверка логических операторов
+                    bool keepRow = (conditions.get(0).logicOP == "AND");
+                    for (int i = 0; i < shouldRemove.size(); ++i) {
+                        if (keepRow) {
+                            keepRow = keepRow && shouldRemove.getElementAt(i); // логика AND
+                        } else {
+                            keepRow = keepRow || shouldRemove.getElementAt(i); // логика OR
+                        }
+                    }
+
+                    // Если строка должна оставаться, добавляем ее к результату
+                    if (keepRow) {
+                        filteredRows += row + "\n";
                     }
                 }
-                foutput(filepath, filteredRows);
-                copy--;
+
+                filerec(fin, filteredRows);
+                copyCount--;
             }
 
-            filepath = "../" + nameBD + "/" + table + "/" + table + "_lock.txt";
-            foutput(filepath, "open");
-            cout << "Команда выполнена!" << endl;
-        } else cout << "Ошибка, таблица используется другим пользователем!" << endl;
+        lockTable(table, true); // Снова открываем таблицу
+        cout << "Команда выполнена!" << endl;
+        } else {
+            cout << "Ошибка, таблица используется другим пользователем!" << endl;
+        }
     }
 
+    /// Функции для инсерта ///
     void checkInsert(string& table, string& values) {
         string lockFilePath = "../" + nameBD + "/" + table + "/" + table + "_lock.txt";
         if (fileread(lockFilePath) != "open") {
@@ -369,20 +415,16 @@ struct DataBase {
             cerr << "Ошибка! Не удалось прочитать значение первичного ключа!" << endl;
             return;
         }
-
         int pkInt = stoi(pkValue); // Текущий первичный ключ (не увеличиваем здесь)
-        
-        // Меняем на 1, так как записи начинаются с 1
         filerec(pkFilePath, to_string(pkInt + 1));
 
         // Обработка количества файлов
-        string fileCountStr;
-        if (!fileCountHash.get(table, fileCountStr)) {
+        int fileCount;
+        if (!fileCountHash.get(table, fileCount)) {
             cerr << "Ошибка: Не удалось получить количество файлов для таблицы " << table << endl;
             return;
         }
 
-        int fileCount = stoi(fileCountStr);
         string csvFilePath = "../" + nameBD + "/" + table + "/" + to_string(fileCount) + ".csv";
 
         // Проверка количества строк
@@ -390,7 +432,7 @@ struct DataBase {
         if (lineCount >= rowLimits) {
             ++fileCount; // Создаем новый файл
             fileCountHash.remove(table);
-            fileCountHash.insert(table, to_string(fileCount));
+            fileCountHash.insert(table, fileCount);
             csvFilePath = "../" + nameBD + "/" + table + "/" + to_string(fileCount) + ".csv";
         }
 
@@ -474,464 +516,483 @@ struct DataBase {
 
 
     // ф-ии селекта
-    void isValidSelect(string& command) { // ф-ия проверки ввода команды select
-        Where conditions;
-        SinglyLinkedList<Where> cond;
+    // void isValidSelect(string& command) { // ф-ия проверки ввода команды select
+    //     Where conditions;
+    //     SinglyLinkedList<Where> cond;
 
-        if (command.find_first_of("from") != -1) {
-            // работа со столбцами
-            while (command.substr(0, 4) != "from") {
-                string token = command.substr(0, command.find_first_of(' '));
-                if (token.find_first_of(',') != -1) token.pop_back(); // удаляем запятую
-                command.erase(0, command.find_first_of(' ') + 1);
-                if (token.find_first_of('.') != -1) token.replace(token.find_first_of('.'), 1, " ");
-                else {
-                    cout << "Ошибка, нарушен синтаксис команды!" << endl;
-                    return;
-                }
-                stringstream ss(token);
-                ss >> conditions.table >> conditions.column;
-                bool check = false;
-                int i;
-                for (i = 0; i < nametables.size; ++i) { // проверка, сущ. ли такая таблица
-                    if (conditions.table == nametables.getvalue(i)) {
-                        check = true;
-                        break;
-                    }
-                }
-                if (!check) {
-                    cout << "Нет такой таблицы!" << endl;
-                    return;
-                }
-                check = false;
-                stringstream iss(stlb.getvalue(i));
-                while (getline(iss, token, ',')) { // проверка, сущ. ли такой столбец
-                    if (token == conditions.column) {
-                        check = true;
-                        break;
-                    }
-                }
-                if (!check) {
-                    cout << "Нет такого столбца" << endl;
-                    return;
-                }
-                cond.push_back(conditions);
-            }
+    //     if (command.find_first_of("from") != -1) {
+    //         // работа со столбцами
+    //         while (command.substr(0, 4) != "from") {
+    //             string token = command.substr(0, command.find_first_of(' '));
+    //             if (token.find_first_of(',') != -1) token.pop_back(); // удаляем запятую
+    //             command.erase(0, command.find_first_of(' ') + 1);
+    //             if (token.find_first_of('.') != -1) token.replace(token.find_first_of('.'), 1, " ");
+    //             else {
+    //                 cout << "Ошибка, нарушен синтаксис команды!" << endl;
+    //                 return;
+    //             }
+    //             stringstream ss(token);
+    //             ss >> conditions.table >> conditions.column;
+    //             bool check = false;
+    //             int i;
+    //             for (i = 0; i < nametables.size; ++i) { // проверка, сущ. ли такая таблица
+    //                 if (conditions.table == nametables.getvalue(i)) {
+    //                     check = true;
+    //                     break;
+    //                 }
+    //             }
+    //             if (!check) {
+    //                 cout << "Нет такой таблицы!" << endl;
+    //                 return;
+    //             }
+    //             check = false;
+    //             stringstream iss(stlb.getvalue(i));
+    //             while (getline(iss, token, ',')) { // проверка, сущ. ли такой столбец
+    //                 if (token == conditions.column) {
+    //                     check = true;
+    //                     break;
+    //                 }
+    //             }
+    //             if (!check) {
+    //                 cout << "Нет такого столбца" << endl;
+    //                 return;
+    //             }
+    //             cond.push_back(conditions);
+    //         }
 
-            command.erase(0, command.find_first_of(' ') + 1); // скип from
+    //         command.erase(0, command.find_first_of(' ') + 1); // скип from
 
-            // работа с таблицами
-            int iter = 0;
-            while (!command.empty()) { // пока строка не пуста
-                string token = command.substr(0, command.find_first_of(' '));
-                if (token.find_first_of(',') != -1) {
-                    token.pop_back();
-                }
-                int position = command.find_first_of(' ');
-                if (position != -1) command.erase(0, position + 1);
-                else command.erase(0);
-                if (iter + 1 > cond.size || token != cond.getvalue(iter).table) {
-                    cout << "Ошибка, указаные таблицы не совпадают или их больше!" << endl;
-                    return;
-                }
-                if (command.substr(0, 5) == "where") break; // также заканчиваем цикл если встретился WHERE
-                iter++;
-            }
-            if (command.empty()) {
-                select(cond);
-            } else {
-                if (command.find_first_of(' ') != -1) {
-                    command.erase(0, 6);
-                    int position = command.find_first_of(' ');
-                    if (position != -1) {
-                        string token = command.substr(0, position);
-                        command.erase(0, position + 1);
-                        if (token.find_first_of('.') != -1) {
-                            token.replace(token.find_first_of('.'), 1, " ");
-                            stringstream ss(token);
-                            string table, column;
-                            ss >> table >> column;
-                            if (table == cond.getvalue(0).table) { // проверка таблицы в where
-                                position = command.find_first_of(' ');
-                                if ((position != -1) && (command[0] == '=')) {
-                                    command.erase(0, position + 1);
-                                    position = command.find_first_of(' ');
-                                    if (position == -1) { // если нет лог. операторов
-                                        if (command.find_first_of('.') == -1) { // если просто значение
-                                            conditions.value = command;
-                                            conditions.check = true;
-                                            selectWithValue(cond, table, column, conditions);
-                                        } else { // если столбец
-                                            command.replace(command.find_first_of('.'), 1, " ");
-                                            stringstream iss(command);
-                                            iss >> conditions.table >> conditions.column;
-                                            conditions.check = false;
-                                            selectWithValue(cond, table, column, conditions);
-                                        }
+    //         // работа с таблицами
+    //         int iter = 0;
+    //         while (!command.empty()) { // пока строка не пуста
+    //             string token = command.substr(0, command.find_first_of(' '));
+    //             if (token.find_first_of(',') != -1) {
+    //                 token.pop_back();
+    //             }
+    //             int position = command.find_first_of(' ');
+    //             if (position != -1) command.erase(0, position + 1);
+    //             else command.erase(0);
+    //             if (iter + 1 > cond.size || token != cond.getvalue(iter).table) {
+    //                 cout << "Ошибка, указаные таблицы не совпадают или их больше!" << endl;
+    //                 return;
+    //             }
+    //             if (command.substr(0, 5) == "where") break; // также заканчиваем цикл если встретился WHERE
+    //             iter++;
+    //         }
+    //         if (command.empty()) {
+    //             select(cond);
+    //         } else {
+    //             if (command.find_first_of(' ') != -1) {
+    //                 command.erase(0, 6);
+    //                 int position = command.find_first_of(' ');
+    //                 if (position != -1) {
+    //                     string token = command.substr(0, position);
+    //                     command.erase(0, position + 1);
+    //                     if (token.find_first_of('.') != -1) {
+    //                         token.replace(token.find_first_of('.'), 1, " ");
+    //                         stringstream ss(token);
+    //                         string table, column;
+    //                         ss >> table >> column;
+    //                         if (table == cond.getvalue(0).table) { // проверка таблицы в where
+    //                             position = command.find_first_of(' ');
+    //                             if ((position != -1) && (command[0] == '=')) {
+    //                                 command.erase(0, position + 1);
+    //                                 position = command.find_first_of(' ');
+    //                                 if (position == -1) { // если нет лог. операторов
+    //                                     if (command.find_first_of('.') == -1) { // если просто значение
+    //                                         conditions.value = command;
+    //                                         conditions.check = true;
+    //                                         selectWithValue(cond, table, column, conditions);
+    //                                     } else { // если столбец
+    //                                         command.replace(command.find_first_of('.'), 1, " ");
+    //                                         stringstream iss(command);
+    //                                         iss >> conditions.table >> conditions.column;
+    //                                         conditions.check = false;
+    //                                         selectWithValue(cond, table, column, conditions);
+    //                                     }
 
-                                    } else { // если есть лог. операторы
-                                        SinglyLinkedList<Where> values;
-                                        token = command.substr(0, position);
-                                        command.erase(0, position + 1);
-                                        if (token.find_first_of('.') == -1) { // если просто значение
-                                            conditions.value = token;
-                                            conditions.check = true;
-                                            values.push_back(conditions);
-                                        } else { // если столбец
-                                            token.replace(token.find_first_of('.'), 1, " ");
-                                            stringstream stream(token);
-                                            stream >> conditions.table >> conditions.column;
-                                            conditions.check = false;
-                                            values.push_back(conditions);
-                                        }
-                                        position = command.find_first_of(' ');
-                                        if ((position != -1) && (command.substr(0, 2) == "or" || command.substr(0, 3) == "and")) {
-                                            conditions.logicalOP = command.substr(0, position);
-                                            command.erase(0, position + 1);
-                                            position = command.find_first_of(' ');
-                                            if (position != -1) {
-                                                token = command.substr(0, position);
-                                                command.erase(0, position + 1);
-                                                if (token.find_first_of('.') != -1) {
-                                                    token.replace(token.find_first_of('.'), 1, " ");
-                                                    stringstream istream(token);
-                                                    SinglyLinkedList<string> tables;
-                                                    SinglyLinkedList<string> columns;
-                                                    tables.push_back(table);
-                                                    columns.push_back(column);
-                                                    istream >> table >> column;
-                                                    tables.push_back(table);
-                                                    columns.push_back(column);
-                                                    if (table == cond.getvalue(0).table) { // проверка таблицы в where
-                                                        position = command.find_first_of(' ');
-                                                        if ((position != -1) && (command[0] == '=')) {
-                                                            command.erase(0, position + 1);
-                                                            position = command.find_first_of(' ');
-                                                            if (position == -1) { // если нет лог. операторов
-                                                                if (command.find_first_of('.') == -1) { // если просто значение
-                                                                    conditions.value = command.substr(0, position);
-                                                                    conditions.check = true;
-                                                                    command.erase(0, position + 1);
-                                                                    values.push_back(conditions);
-                                                                    selectWithLogic(cond, tables, columns, values);
-                                                                } else { // если столбец
-                                                                    token = command.substr(0, position);
-                                                                    token.replace(token.find_first_of('.'), 1, " ");
-                                                                    command.erase(0, position + 1);
-                                                                    stringstream stream(token);
-                                                                    stream >> conditions.table >> conditions.column;
-                                                                    conditions.check = false;
-                                                                    values.push_back(conditions);
-                                                                    selectWithLogic(cond, tables, columns, values);
-                                                                }
-                                                            } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
-                                                        } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
-                                                    } else cout << "Ошибка, таблица в where не совпадает с начальной!" << endl;
-                                                } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
-                                            } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
-                                        } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
-                                    }
-                                } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
-                            } else cout << "Ошибка, таблица в where не совпадает с начальной!" << endl;
-                        } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
-                    } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
-                } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
-            }
-        } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
-    }
+    //                                 } else { // если есть лог. операторы
+    //                                     SinglyLinkedList<Where> values;
+    //                                     token = command.substr(0, position);
+    //                                     command.erase(0, position + 1);
+    //                                     if (token.find_first_of('.') == -1) { // если просто значение
+    //                                         conditions.value = token;
+    //                                         conditions.check = true;
+    //                                         values.push_back(conditions);
+    //                                     } else { // если столбец
+    //                                         token.replace(token.find_first_of('.'), 1, " ");
+    //                                         stringstream stream(token);
+    //                                         stream >> conditions.table >> conditions.column;
+    //                                         conditions.check = false;
+    //                                         values.push_back(conditions);
+    //                                     }
+    //                                     position = command.find_first_of(' ');
+    //                                     if ((position != -1) && (command.substr(0, 2) == "or" || command.substr(0, 3) == "and")) {
+    //                                         conditions.logicalOP = command.substr(0, position);
+    //                                         command.erase(0, position + 1);
+    //                                         position = command.find_first_of(' ');
+    //                                         if (position != -1) {
+    //                                             token = command.substr(0, position);
+    //                                             command.erase(0, position + 1);
+    //                                             if (token.find_first_of('.') != -1) {
+    //                                                 token.replace(token.find_first_of('.'), 1, " ");
+    //                                                 stringstream istream(token);
+    //                                                 SinglyLinkedList<string> tables;
+    //                                                 SinglyLinkedList<string> columns;
+    //                                                 tables.push_back(table);
+    //                                                 columns.push_back(column);
+    //                                                 istream >> table >> column;
+    //                                                 tables.push_back(table);
+    //                                                 columns.push_back(column);
+    //                                                 if (table == cond.getvalue(0).table) { // проверка таблицы в where
+    //                                                     position = command.find_first_of(' ');
+    //                                                     if ((position != -1) && (command[0] == '=')) {
+    //                                                         command.erase(0, position + 1);
+    //                                                         position = command.find_first_of(' ');
+    //                                                         if (position == -1) { // если нет лог. операторов
+    //                                                             if (command.find_first_of('.') == -1) { // если просто значение
+    //                                                                 conditions.value = command.substr(0, position);
+    //                                                                 conditions.check = true;
+    //                                                                 command.erase(0, position + 1);
+    //                                                                 values.push_back(conditions);
+    //                                                                 selectWithLogic(cond, tables, columns, values);
+    //                                                             } else { // если столбец
+    //                                                                 token = command.substr(0, position);
+    //                                                                 token.replace(token.find_first_of('.'), 1, " ");
+    //                                                                 command.erase(0, position + 1);
+    //                                                                 stringstream stream(token);
+    //                                                                 stream >> conditions.table >> conditions.column;
+    //                                                                 conditions.check = false;
+    //                                                                 values.push_back(conditions);
+    //                                                                 selectWithLogic(cond, tables, columns, values);
+    //                                                             }
+    //                                                         } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
+    //                                                     } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
+    //                                                 } else cout << "Ошибка, таблица в where не совпадает с начальной!" << endl;
+    //                                             } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
+    //                                         } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
+    //                                     } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
+    //                                 }
+    //                             } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
+    //                         } else cout << "Ошибка, таблица в where не совпадает с начальной!" << endl;
+    //                     } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
+    //                 } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
+    //             } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
+    //         }
+    //     } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
+    // }
 
-    void select(SinglyLinkedList<Where>& conditions) { // ф-ия обычного селекта
-        for (int i = 0; i < conditions.size; ++i) {
-            bool check = checkLockTable(conditions.getvalue(i).table);
-            if (!check) {
-                cout << "Ошибка, таблица открыта другим пользователем!" << endl;
-                return;
-            }
-        }
-        string filepath;
-        for (int i = 0; i < conditions.size; ++i) {
-            filepath = "../" + nameBD + '/' + conditions.getvalue(i).table + '/' + conditions.getvalue(i).table + "_lock.txt";
-            foutput(filepath, "close");
-        }
+    // void select(SinglyLinkedList<Where>& conditions) { // ф-ия обычного селекта
+    //     for (int i = 0; i < conditions.size; ++i) {
+    //         bool check = checkLockTable(conditions.getvalue(i).table);
+    //         if (!check) {
+    //             cout << "Ошибка, таблица открыта другим пользователем!" << endl;
+    //             return;
+    //         }
+    //     }
+    //     string filepath;
+    //     for (int i = 0; i < conditions.size; ++i) {
+    //         filepath = "../" + nameBD + '/' + conditions.getvalue(i).table + '/' + conditions.getvalue(i).table + "_lock.txt";
+    //         foutput(filepath, "close");
+    //     }
 
-        SinglyLinkedList<int> stlbindex = findIndexStlb(conditions); // узнаем индексы столбцов после "select"
-        SinglyLinkedList<string> tables = textInFile(conditions); // записываем данные из файла в переменные для дальнейшей работы
-        sample(stlbindex, tables); // выборка
+    //     SinglyLinkedList<int> stlbindex = findIndexStlb(conditions); // узнаем индексы столбцов после "select"
+    //     SinglyLinkedList<string> tables = textInFile(conditions); // записываем данные из файла в переменные для дальнейшей работы
+    //     sample(stlbindex, tables); // выборка
 
-        for (int i = 0; i < conditions.size; ++i) {
-            filepath = "../" + nameBD + '/' + conditions.getvalue(i).table + '/' + conditions.getvalue(i).table + "_lock.txt";
-            foutput(filepath, "open");
-        }
-    }
+    //     for (int i = 0; i < conditions.size; ++i) {
+    //         filepath = "../" + nameBD + '/' + conditions.getvalue(i).table + '/' + conditions.getvalue(i).table + "_lock.txt";
+    //         foutput(filepath, "open");
+    //     }
+    // }
 
-    void selectWithValue(SinglyLinkedList<Where>& conditions, string& table, string& stolbec, struct Where value) { // ф-ия селекта с where для обычного условия
-        for (int i = 0; i < conditions.size; ++i) {
-            bool check = checkLockTable(conditions.getvalue(i).table);
-            if (!check) {
-                cout << "Ошибка, таблица открыта другим пользователем!" << endl;
-                return;
-            }
-        }
-        string filepath;
-        for (int i = 0; i < conditions.size; ++i) {
-            filepath = "../" + nameBD + '/' + conditions.getvalue(i).table + '/' + conditions.getvalue(i).table + "_lock.txt";
-            foutput(filepath, "close");
-        }
+    // void selectWithValue(SinglyLinkedList<Where>& conditions, string& table, string& stolbec, struct Where value) { // ф-ия селекта с where для обычного условия
+    //     for (int i = 0; i < conditions.size; ++i) {
+    //         bool check = checkLockTable(conditions.getvalue(i).table);
+    //         if (!check) {
+    //             cout << "Ошибка, таблица открыта другим пользователем!" << endl;
+    //             return;
+    //         }
+    //     }
+    //     string filepath;
+    //     for (int i = 0; i < conditions.size; ++i) {
+    //         filepath = "../" + nameBD + '/' + conditions.getvalue(i).table + '/' + conditions.getvalue(i).table + "_lock.txt";
+    //         foutput(filepath, "close");
+    //     }
 
-        SinglyLinkedList<int> stlbindex = findIndexStlb(conditions); // узнаем индексы столбцов
-        int stlbindexval = findIndexStlbCond(table, stolbec); // узнаем индекс столбца условия
-        int stlbindexvalnext = findIndexStlbCond(value.table, value.column); // узнаем индекс столбца условия после '='(нужно если условиестолбец)
-        SinglyLinkedList<string> tables = textInFile(conditions); // записываем данные из файла в переменные для дальнейшей работы
-        SinglyLinkedList<string> column = findStlbTable(conditions, tables, stlbindexvalnext, value.table);; // записываем колонки таблицы условия после '='(нужно если условиестолбец)
+    //     SinglyLinkedList<int> stlbindex = findIndexStlb(conditions); // узнаем индексы столбцов
+    //     int stlbindexval = findIndexStlbCond(table, stolbec); // узнаем индекс столбца условия
+    //     int stlbindexvalnext = findIndexStlbCond(value.table, value.column); // узнаем индекс столбца условия после '='(нужно если условиестолбец)
+    //     SinglyLinkedList<string> tables = textInFile(conditions); // записываем данные из файла в переменные для дальнейшей работы
+    //     SinglyLinkedList<string> column = findStlbTable(conditions, tables, stlbindexvalnext, value.table);; // записываем колонки таблицы условия после '='(нужно если условиестолбец)
         
-        // фильтруем нужные строки
-        for (int i = 0; i < conditions.size; ++i) {
-            if (conditions.getvalue(i).table == table) { 
-                stringstream stream(tables.getvalue(i));
-                string str;
-                string filetext;
-                int iterator = 0; // нужно для условиястолбец 
-                while (getline(stream, str)) {
-                    stringstream istream(str);
-                    string token;
-                    int currentIndex = 0;
-                    while (getline(istream, token, ',')) {
-                        if (value.check) { // для простого условия
-                            if (currentIndex == stlbindexval && token == value.value) {
-                                filetext += str + '\n';
-                                break;
-                            }
-                            currentIndex++;
-                        } else { // для условиястолбец
-                            if (currentIndex == stlbindexval && token == column.getvalue(iterator)) {
-                            filetext += str + '\n';
-                            }
-                            currentIndex++;
-                        }
-                    }
-                    iterator++;
-                }
-                tables.replace(i, filetext);
-            }
-        }
+    //     // фильтруем нужные строки
+    //     for (int i = 0; i < conditions.size; ++i) {
+    //         if (conditions.getvalue(i).table == table) { 
+    //             stringstream stream(tables.getvalue(i));
+    //             string str;
+    //             string filetext;
+    //             int iterator = 0; // нужно для условиястолбец 
+    //             while (getline(stream, str)) {
+    //                 stringstream istream(str);
+    //                 string token;
+    //                 int currentIndex = 0;
+    //                 while (getline(istream, token, ',')) {
+    //                     if (value.check) { // для простого условия
+    //                         if (currentIndex == stlbindexval && token == value.value) {
+    //                             filetext += str + '\n';
+    //                             break;
+    //                         }
+    //                         currentIndex++;
+    //                     } else { // для условиястолбец
+    //                         if (currentIndex == stlbindexval && token == column.getvalue(iterator)) {
+    //                         filetext += str + '\n';
+    //                         }
+    //                         currentIndex++;
+    //                     }
+    //                 }
+    //                 iterator++;
+    //             }
+    //             tables.replace(i, filetext);
+    //         }
+    //     }
 
-        sample(stlbindex, tables); // выборка
+    //     sample(stlbindex, tables); // выборка
 
-        for (int i = 0; i < conditions.size; ++i) {
-            filepath = "../" + nameBD + '/' + conditions.getvalue(i).table + '/' + conditions.getvalue(i).table + "_lock.txt";
-            foutput(filepath, "open");
-        }
+    //     for (int i = 0; i < conditions.size; ++i) {
+    //         filepath = "../" + nameBD + '/' + conditions.getvalue(i).table + '/' + conditions.getvalue(i).table + "_lock.txt";
+    //         foutput(filepath, "open");
+    //     }
+    // }
+
+    // void selectWithLogic(SinglyLinkedList<Where>& conditions, SinglyLinkedList<string>& table, SinglyLinkedList<string>& stolbec, SinglyLinkedList<Where>& value) {
+    //     for (int i = 0; i < conditions.size; ++i) {
+    //         bool check = checkLockTable(conditions.getvalue(i).table);
+    //         if (!check) {
+    //             cout << "Ошибка, таблица открыта другим пользователем!" << endl;
+    //             return;
+    //         }
+    //     }
+    //     string filepath;
+    //     for (int i = 0; i < conditions.size; ++i) {
+    //         filepath = "../" + nameBD + '/' + conditions.getvalue(i).table + '/' + conditions.getvalue(i).table + "_lock.txt";
+    //         foutput(filepath, "close");
+    //     }
+
+    //     SinglyLinkedList<int> stlbindex = findIndexStlb(conditions); // узнаем индексы столбцов после "select"
+    //     SinglyLinkedList<string> tables = textInFile(conditions); // записываем данные из файла в переменные для дальнейшей работы
+    //     SinglyLinkedList<int> stlbindexval;// узнаем индексы столбца условия
+    //     for (int i = 0; i < stolbec.size; ++i) {
+    //         int index = findIndexStlbCond(table.getvalue(i), stolbec.getvalue(i));
+    //         stlbindexval.push_back(index);
+    //     }
+    //     SinglyLinkedList<int> stlbindexvalnext; // узнаем индекс столбца условия после '='(нужно если условиестолбец)
+    //     for (int i = 0; i < value.size; ++i) {
+    //         int index = findIndexStlbCond(value.getvalue(i).table, value.getvalue(i).column); // узнаем индекс столбца условия после '='(нужно если условиестолбец)
+    //         stlbindexvalnext.push_back(index);
+    //     }
+    //     SinglyLinkedList<string> column;
+    //     for (int j = 0; j < value.size; ++j) {
+    //         if (!value.getvalue(j).check) { // если условие столбец
+    //             column = findStlbTable(conditions, tables, stlbindexvalnext.getvalue(j), value.getvalue(j).table);
+    //         }
+    //     }
+
+    //     // фильтруем нужные строки
+    //     for (int i = 0; i < conditions.size; ++i) {
+    //         if (conditions.getvalue(i).table == table.getvalue(0)) {
+    //             stringstream stream(tables.getvalue(i));
+    //             string str;
+    //             string filetext;
+    //             int iterator = 0; // нужно для условиястолбец 
+    //             while (getline(stream, str)) {
+    //                 SinglyLinkedList<bool> checkstr;
+    //                 for (int j = 0; j < value.size; ++j) {
+    //                     stringstream istream(str);
+    //                     string token;
+    //                     int currentIndex = 0;
+    //                     bool check = false;
+    //                     while (getline(istream, token, ',')) {
+    //                         if (value.getvalue(j).check) { // если просто условие
+    //                             if (currentIndex == stlbindexval.getvalue(j) && token == value.getvalue(j).value) {
+    //                                 check = true;
+    //                                 break;
+    //                             }
+    //                             currentIndex++;
+    //                         } else { // если условие столбец
+    //                             if (currentIndex == stlbindexval.getvalue(j) && token == column.getvalue(iterator)) {
+    //                                 check = true;
+    //                                 break;
+    //                             }
+    //                             currentIndex++;
+    //                         }
+    //                     }
+    //                     checkstr.push_back(check);
+    //                 }
+    //                 if (value.getvalue(1).logicalOP == "and") { // Если оператор И
+    //                     if (checkstr.getvalue(0) && checkstr.getvalue(1)) filetext += str + "\n";
+    //                 } else { // Если оператор ИЛИ
+    //                     if (!checkstr.getvalue(0) && !checkstr.getvalue(1));
+    //                     else filetext += str + "\n";
+    //                 }
+    //                 iterator++;
+    //             }
+    //             tables.replace(i, filetext);
+    //         }
+    //     }
+
+    //     sample(stlbindex, tables); // выборка
+
+    //     for (int i = 0; i < conditions.size; ++i) {
+    //         filepath = "../" + nameBD + '/' + conditions.getvalue(i).table + '/' + conditions.getvalue(i).table + "_lock.txt";
+    //         foutput(filepath, "open");
+    //     }
+    // }
+
+    bool checkLockTable(string table) {
+        string fin = "../" + nameBD + "/" + table + "/" + table + "_lock.txt";
+        string check = fileread(fin);
+        return check == "open"; // Возврат статуса блокировки
     }
 
-    void selectWithLogic(SinglyLinkedList<Where>& conditions, SinglyLinkedList<string>& table, SinglyLinkedList<string>& stolbec, SinglyLinkedList<Where>& value) {
-        for (int i = 0; i < conditions.size; ++i) {
-            bool check = checkLockTable(conditions.getvalue(i).table);
-            if (!check) {
-                cout << "Ошибка, таблица открыта другим пользователем!" << endl;
-                return;
-            }
-        }
-        string filepath;
-        for (int i = 0; i < conditions.size; ++i) {
-            filepath = "../" + nameBD + '/' + conditions.getvalue(i).table + '/' + conditions.getvalue(i).table + "_lock.txt";
-            foutput(filepath, "close");
-        }
-
-        SinglyLinkedList<int> stlbindex = findIndexStlb(conditions); // узнаем индексы столбцов после "select"
-        SinglyLinkedList<string> tables = textInFile(conditions); // записываем данные из файла в переменные для дальнейшей работы
-        SinglyLinkedList<int> stlbindexval;// узнаем индексы столбца условия
-        for (int i = 0; i < stolbec.size; ++i) {
-            int index = findIndexStlbCond(table.getvalue(i), stolbec.getvalue(i));
-            stlbindexval.push_back(index);
-        }
-        SinglyLinkedList<int> stlbindexvalnext; // узнаем индекс столбца условия после '='(нужно если условиестолбец)
-        for (int i = 0; i < value.size; ++i) {
-            int index = findIndexStlbCond(value.getvalue(i).table, value.getvalue(i).column); // узнаем индекс столбца условия после '='(нужно если условиестолбец)
-            stlbindexvalnext.push_back(index);
-        }
-        SinglyLinkedList<string> column;
-        for (int j = 0; j < value.size; ++j) {
-            if (!value.getvalue(j).check) { // если условие столбец
-                column = findStlbTable(conditions, tables, stlbindexvalnext.getvalue(j), value.getvalue(j).table);
-            }
-        }
-
-        // фильтруем нужные строки
-        for (int i = 0; i < conditions.size; ++i) {
-            if (conditions.getvalue(i).table == table.getvalue(0)) {
-                stringstream stream(tables.getvalue(i));
-                string str;
-                string filetext;
-                int iterator = 0; // нужно для условиястолбец 
-                while (getline(stream, str)) {
-                    SinglyLinkedList<bool> checkstr;
-                    for (int j = 0; j < value.size; ++j) {
-                        stringstream istream(str);
-                        string token;
-                        int currentIndex = 0;
-                        bool check = false;
-                        while (getline(istream, token, ',')) {
-                            if (value.getvalue(j).check) { // если просто условие
-                                if (currentIndex == stlbindexval.getvalue(j) && token == value.getvalue(j).value) {
-                                    check = true;
-                                    break;
-                                }
-                                currentIndex++;
-                            } else { // если условие столбец
-                                if (currentIndex == stlbindexval.getvalue(j) && token == column.getvalue(iterator)) {
-                                    check = true;
-                                    break;
-                                }
-                                currentIndex++;
-                            }
-                        }
-                        checkstr.push_back(check);
-                    }
-                    if (value.getvalue(1).logicalOP == "and") { // Если оператор И
-                        if (checkstr.getvalue(0) && checkstr.getvalue(1)) filetext += str + "\n";
-                    } else { // Если оператор ИЛИ
-                        if (!checkstr.getvalue(0) && !checkstr.getvalue(1));
-                        else filetext += str + "\n";
-                    }
-                    iterator++;
-                }
-                tables.replace(i, filetext);
-            }
-        }
-
-        sample(stlbindex, tables); // выборка
-
-        for (int i = 0; i < conditions.size; ++i) {
-            filepath = "../" + nameBD + '/' + conditions.getvalue(i).table + '/' + conditions.getvalue(i).table + "_lock.txt";
-            foutput(filepath, "open");
-        }
+    void lockTable(string& table, bool open) {
+        string fin = "../" + nameBD + "/" + table + "/" + table + "_lock.txt";
+        filerec(fin, open ? "open" : "close");
     }
 
-    bool checkLockTable(string table) { // ф-ия проверки, закрыта ли таблица
-        string filepath = "../" + nameBD + "/" + table + "/" + table + "_lock.txt";
-        string check = finput(filepath);
-        if (check == "open") return true;
-        else return false;
-    }
+    // SinglyLinkedList<int> findIndexStlb(SinglyLinkedList<Where>& conditions) { // ф-ия нахождения индекса столбцов(для select)
+    //     SinglyLinkedList<int> stlbindex;
+    //     for (int i = 0; i < conditions.size; ++i) {
+    //         int index = nametables.getindex(conditions.getvalue(i).table);
+    //         string str = stlb.getvalue(index);
+    //         stringstream ss(str);
+    //         int stolbecindex = 0;
+    //         while (getline(ss, str, ',')) {
+    //             if (str == conditions.getvalue(i).column) {
+    //                 stlbindex.push_back(stolbecindex);
+    //                 break;
+    //             }
+    //             stolbecindex++;
+    //         }
+    //     }
+    //     return stlbindex;
+    // }
 
-    SinglyLinkedList<int> findIndexStlb(SinglyLinkedList<Where>& conditions) { // ф-ия нахождения индекса столбцов(для select)
-        SinglyLinkedList<int> stlbindex;
-        for (int i = 0; i < conditions.size; ++i) {
-            int index = nametables.getindex(conditions.getvalue(i).table);
-            string str = stlb.getvalue(index);
-            stringstream ss(str);
-            int stolbecindex = 0;
-            while (getline(ss, str, ',')) {
-                if (str == conditions.getvalue(i).column) {
-                    stlbindex.push_back(stolbecindex);
-                    break;
-                }
-                stolbecindex++;
-            }
-        }
-        return stlbindex;
-    }
+    // int findIndexStlbCond(string table, string stolbec) { // ф-ия нахождения индекса столбца условия(для select)
+    //     int index = nametables.getindex(table);
+    //     string str = stlb.getvalue(index);
+    //     stringstream ss(str);
+    //     int stlbindex = 0;
+    //     while (getline(ss, str, ',')) {
+    //         if (str == stolbec) break;
+    //         stlbindex++;
+    //     }
+    //     return stlbindex;
+    // }
 
-    int findIndexStlbCond(string table, string stolbec) { // ф-ия нахождения индекса столбца условия(для select)
-        int index = nametables.getindex(table);
-        string str = stlb.getvalue(index);
-        stringstream ss(str);
-        int stlbindex = 0;
-        while (getline(ss, str, ',')) {
-            if (str == stolbec) break;
-            stlbindex++;
-        }
-        return stlbindex;
-    }
+    // SinglyLinkedList<string> textInFile(SinglyLinkedList<Where>& conditions) { // ф-ия инпута текста из таблиц(для select)
+    //     string filepath;
+    //     SinglyLinkedList<string> tables;
+    //     for (int i = 0; i < conditions.size; ++i) {
+    //         string filetext;
+    //         int index = nametables.getindex(conditions.getvalue(i).table);
+    //         int iter = 0;
+    //         do {
+    //             iter++;
+    //             filepath = "../" + nameBD + '/' + conditions.getvalue(i).table + '/' + to_string(iter) + ".csv";
+    //             string text = finput(filepath);
+    //             int position = text.find('\n'); // удаляем названия столбцов
+    //             text.erase(0, position + 1);
+    //             filetext += text + '\n';
+    //         } while (iter != fileindex.getvalue(index));
+    //         tables.push_back(filetext);
+    //     }
+    //     return tables;
+    // }
 
-    SinglyLinkedList<string> textInFile(SinglyLinkedList<Where>& conditions) { // ф-ия инпута текста из таблиц(для select)
-        string filepath;
-        SinglyLinkedList<string> tables;
-        for (int i = 0; i < conditions.size; ++i) {
-            string filetext;
-            int index = nametables.getindex(conditions.getvalue(i).table);
-            int iter = 0;
-            do {
-                iter++;
-                filepath = "../" + nameBD + '/' + conditions.getvalue(i).table + '/' + to_string(iter) + ".csv";
-                string text = finput(filepath);
-                int position = text.find('\n'); // удаляем названия столбцов
-                text.erase(0, position + 1);
-                filetext += text + '\n';
-            } while (iter != fileindex.getvalue(index));
-            tables.push_back(filetext);
-        }
-        return tables;
-    }
+    // SinglyLinkedList<string> findStlbTable(SinglyLinkedList<Where>& conditions, SinglyLinkedList<string>& tables, int stlbindexvalnext, string table) { // ф-ия инпута нужных колонок из таблиц для условиястолбец(для select)
+    //     SinglyLinkedList<string> column;
+    //     for (int i = 0; i < conditions.size; ++i) {
+    //         if (conditions.getvalue(i).table == table) {
+    //             stringstream stream(tables.getvalue(i));
+    //             string str;
+    //             while (getline(stream, str)) {
+    //                 stringstream istream(str);
+    //                 string token;
+    //                 int currentIndex = 0;
+    //                 while (getline(istream, token, ',')) {
+    //                     if (currentIndex == stlbindexvalnext) {
+    //                         column.push_back(token);
+    //                         break;
+    //                     }
+    //                     currentIndex++;
+    //                 }
+    //             }
+    //         }
+    //     }
+    //     return column;
+    // }
 
-    SinglyLinkedList<string> findStlbTable(SinglyLinkedList<Where>& conditions, SinglyLinkedList<string>& tables, int stlbindexvalnext, string table) { // ф-ия инпута нужных колонок из таблиц для условиястолбец(для select)
-        SinglyLinkedList<string> column;
-        for (int i = 0; i < conditions.size; ++i) {
-            if (conditions.getvalue(i).table == table) {
-                stringstream stream(tables.getvalue(i));
-                string str;
-                while (getline(stream, str)) {
-                    stringstream istream(str);
-                    string token;
-                    int currentIndex = 0;
-                    while (getline(istream, token, ',')) {
-                        if (currentIndex == stlbindexvalnext) {
-                            column.push_back(token);
-                            break;
-                        }
-                        currentIndex++;
-                    }
-                }
-            }
-        }
-        return column;
-    }
+    // void sample(SinglyLinkedList<int>& stlbindex, SinglyLinkedList<string>& tables) { // ф-ия выборки(для select)
+    //    for (int i = 0; i < tables.size - 1; ++i) {
+    //         stringstream onefile(tables.getvalue(i));
+    //         string token;
+    //         while (getline(onefile, token)) {
+    //             string needstlb;
+    //             stringstream ionefile(token);
+    //             int currentIndex = 0;
+    //             while (getline(ionefile, token, ',')) {
+    //                 if (currentIndex == stlbindex.getvalue(i)) {
+    //                     needstlb = token;
+    //                     break;
+    //                 }
+    //                 currentIndex++;
+    //             }
+    //             stringstream twofile(tables.getvalue(i + 1));
+    //             while (getline(twofile, token)) {
+    //                 stringstream itwofile(token);
+    //                 currentIndex = 0;
+    //                 while (getline(itwofile, token, ',')) {
+    //                     if (currentIndex == stlbindex.getvalue(i + 1)) {
+    //                         cout << needstlb << ' ' << token << endl;
+    //                         break;
+    //                     }
+    //                     currentIndex++;
+    //                 }
+    //             }
+    //         } 
+    //     } 
+    // }
 
-    void sample(SinglyLinkedList<int>& stlbindex, SinglyLinkedList<string>& tables) { // ф-ия выборки(для select)
-       for (int i = 0; i < tables.size - 1; ++i) {
-            stringstream onefile(tables.getvalue(i));
-            string token;
-            while (getline(onefile, token)) {
-                string needstlb;
-                stringstream ionefile(token);
-                int currentIndex = 0;
-                while (getline(ionefile, token, ',')) {
-                    if (currentIndex == stlbindex.getvalue(i)) {
-                        needstlb = token;
-                        break;
-                    }
-                    currentIndex++;
-                }
-                stringstream twofile(tables.getvalue(i + 1));
-                while (getline(twofile, token)) {
-                    stringstream itwofile(token);
-                    currentIndex = 0;
-                    while (getline(itwofile, token, ',')) {
-                        if (currentIndex == stlbindex.getvalue(i + 1)) {
-                            cout << needstlb << ' ' << token << endl;
-                            break;
-                        }
-                        currentIndex++;
-                    }
-                }
-            } 
-        } 
+    void commands(string& command) {
+        if (command.substr(0, 11) == "INSERT INTO") {
+            command.erase(0, 12);
+            Insert(command);
+        } else if (command.substr(0, 11) == "DELETE FROM") {
+            command.erase(0, 12);
+            Delete(command);
+        //} else if (command.substr(0, 6) == "SELECT") {
+            //command.erase(0, 7);
+            //isValidSelect(command);
+        } else if (command == "STOP") {
+            exit(0);
+        } else cout << "Ошибка, неизвестная команда!" << endl; 
     }
 };
 
 
 int main() {
 
-    DataBase carshop;
+    BaseData airport;
 
-    carshop.parse();
-    carshop.mkdir();
+    airport.parser();
+    airport.createdirect();
 
     string command;
     while (true) {
-        cout << endl << "Введите команду: ";
+        cout << endl << "Вводите команду: ";
         getline(cin, command);
-        carshop.checkcommand(command);
+        airport.commands(command);
     }
 
     return 0;

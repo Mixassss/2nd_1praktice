@@ -1,12 +1,14 @@
 #include "../include/ht.h"
 
-Hash_table::Hash_table() {
+template <typename Key, typename Value>
+Hash_table<Key, Value>::Hash_table() {
     for(size_t i = 0; i < SIZE; ++i) {
         table[i] = nullptr; //Присваиванпие каждой ноды, нулевого значения
     }
 }
 
-Hash_table::~Hash_table() {
+template <typename Key, typename Value>
+Hash_table<Key, Value>::~Hash_table() {
     for (size_t i = 0; i < SIZE; ++i) {
         HNode* current = table[i];
         while (current) {
@@ -17,12 +19,14 @@ Hash_table::~Hash_table() {
     }
 }
 
-int Hash_table::hashFunction(const string& key) {
+template <typename Key, typename Value>
+int Hash_table<Key, Value>::hashFunction(const Key& key) {
     hash<string> hashFn;
     return hashFn(key) % SIZE;
 }
 
-void Hash_table::insert(string &key, const string &value) {
+template <typename Key, typename Value>
+void Hash_table<Key, Value>::insert(const Key& key, const Value& value) {
     int hashValue = hashFunction(key); // Хэш значение соответствующее этому ключу
     HNode* newPair = new HNode(key, value); // Используем конструктор HNode
 
@@ -45,20 +49,22 @@ void Hash_table::insert(string &key, const string &value) {
     }
 }
 
-bool Hash_table::get(const string& key, string& value) {
-    int HashValue = hashFunction(key); //Хэш значение соответсвующее этому ключу
+template <typename Key, typename Value>
+bool Hash_table<Key, Value>::get(const Key& key, Value& value) {
+    int HashValue = hashFunction(key);
     HNode* current = table[HashValue];
     while(current) {
         if(current->key == key) {
-            value = current->value; //Возвращаем значение
-            return true; //Ключ найден
+            value = current->value;
+            return true; // Ключ найден
         }
         current = current->next;
     }
-    return false; //Ключ не найден
+    return false; // Ключ не найден
 }
 
-bool Hash_table::remove(const string& key) {
+template <typename Key, typename Value>
+bool Hash_table<Key, Value>::remove(const Key& key) {
     int HashValue = hashFunction(key);
     HNode* current = table[HashValue];
     HNode* perv = nullptr;
@@ -77,4 +83,9 @@ bool Hash_table::remove(const string& key) {
         current = current->next;
     }
     return false; // Ключ не найден
+}
+
+template <typename Key, typename Value>
+int Hash_table<Key, Value>::size() const {
+    return sizetable;
 }
