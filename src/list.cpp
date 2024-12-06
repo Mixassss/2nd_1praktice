@@ -153,6 +153,11 @@ Node<T>* SinglyLinkedList<T>::getHead() const {
     return head;
 }
 
+template <typename T>
+T SinglyLinkedList<T>::size() {
+    return elementCount;
+}
+
 DoubleNode::DoubleNode(string value){ 
     data = value;
     next = nullptr;

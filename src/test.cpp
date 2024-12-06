@@ -52,11 +52,9 @@ struct BaseData {
     Hash_table<string, int> fileCountHash; // Хэш таблица для количества файлов таблиц
 
     struct Filters { // Структура для фильтрации
-        string table;
-        string colona;
-        string value;
-        string logicOP;
-        bool check; // В частности для select, проверка условия(если просто условие - true, если условиестолбец - false)
+        string colona; // Имя столбца
+        string value; // Значение для сравнения
+        string logicOP; // Логический оператор (AND/OR)
     };
 
     void parser() {
@@ -314,32 +312,38 @@ struct BaseData {
         }
     }
 
-    void delWithLogic(Hash_table<string, Filters>& conditions, string& table) { // ф-ия удаления строк таблицы с логикой
+    void delWithLogic(Hash_table<string, Filters>& filters, string& table) { // ф-ия удаления строк таблицы с логикой
         string fin;
         int index = tablesname.getIndex(table);
         if (checkLockTable(table)) {
             lockTable(table, false); // Закрытие таблицы для работы
 
-                // нахождение индекса столбцов в файле
-                SinglyLinkedList<int> colonaIndexes;
-                string columnValue;
-                for (int i = 0; i < conditions.size(); ++i) {
-                if (coloumnHash.get(table, columnValue)) {
-                    stringstream ss(columnValue);
-                    string column;
-                    int idx = 0;
-                while (getline(ss, column, ',')) {
-                    if (column == conditions.get(i).colona) {
-                        colonaIndexes.pushBack(idx);
-                        break;
+            // нахождение индекса столбцов в файле
+            SinglyLinkedList<int> colonaIndexes;
+            string columnValue;
+
+            // Получаем все условия из хеш-таблицы
+            for (int i = 0; i < filters.size(); ++i) {
+                Filters filterCondition;
+                if (filters.get(to_string(i), filterCondition)) {
+                    if (coloumnHash.get(table, columnValue)) {
+                        stringstream ss(columnValue);
+                        string column;
+                        int idx = 0;
+
+                        while (getline(ss, column, ',')) {
+                            if (column == filterCondition.colona) {
+                                colonaIndexes.pushBack(idx);
+                                break;
+                            }
+                            idx++;
+                        }   
+                    } else {
+                        cerr << "Столбцы не найдены для таблицы: " << table << endl;
+                        return;
                     }
-                    idx++;
                 }
-            } else {
-                cerr << "Столбцы не найдены для таблицы: " << table << endl;
-                return;
             }
-        }
             
             // Удаление строк
             int copyCount;
@@ -351,11 +355,11 @@ struct BaseData {
             while (copyCount > 0) {
                 fin = "../" + nameBD + "/" + table + "/" + to_string(copyCount) + ".csv";
                 string text = fileread(fin);
-                stringstream stroka(text);
+                stringstream rowString(text);
                 string filteredRows;
                 string row;
 
-                while (getline(stroka, row)) {
+                while (getline(rowString, row)) {
                     SinglyLinkedList<bool> shouldRemove;
                     for (int i = 0; i < colonaIndexes.size(); ++i) {
                         stringstream iss(row);
@@ -364,37 +368,50 @@ struct BaseData {
                         bool check = false;
 
                         while (getline(iss, token, ',')) {
-                            if (currentIndex == colonaIndexes.getElementAt(i) && token == conditions.get(i).value) {
-                                check = true;
-                                break;
+                            if (currentIndex == colonaIndexes.getElementAt(i)) {
+                                Filters filterCondition;
+                                if (filters.get(to_string(i), filterCondition)) {
+                                    if (token == filterCondition.value) {
+                                        check = true;
+                                    }
+                                }   
+                                break; // Выходим из цикла, если нашли нужный индекс
                             }
                             currentIndex++;
                         }
-                        shouldRemove.pushBack(check);
+
+                    shouldRemove.pushBack(check);
                     }
 
                     // Проверка логических операторов
-                    bool keepRow = (conditions.get(0).logicOP == "AND");
-                    for (int i = 0; i < shouldRemove.size(); ++i) {
-                        if (keepRow) {
-                            keepRow = keepRow && shouldRemove.getElementAt(i); // логика AND
-                        } else {
-                            keepRow = keepRow || shouldRemove.getElementAt(i); // логика OR
+                    bool keepRow = true;
+                    Filters filterCondition;
+                    if (filters.get("0", filterCondition)) {
+                    if (filterCondition.logicOP == "AND") {
+                        keepRow = true;
+                        for (bool shouldBeRemoved : shouldRemove) {
+                            keepRow = keepRow && shouldBeRemoved; // логика AND
+                        }
+                    } else { // Логика OR
+                        keepRow = false;
+                        for (bool shouldBeRemoved : shouldRemove) {
+                            keepRow = keepRow || !shouldBeRemoved; // логика OR
                         }
                     }
-
-                    // Если строка должна оставаться, добавляем ее к результату
-                    if (keepRow) {
-                        filteredRows += row + "\n";
-                    }
                 }
+
+                // Если строка должна оставаться, добавляем ее к результату
+                if (keepRow) {
+                    filteredRows += row + "\n";
+                }
+            }
 
                 filerec(fin, filteredRows);
                 copyCount--;
             }
 
-        lockTable(table, true); // Снова открываем таблицу
-        cout << "Команда выполнена!" << endl;
+            lockTable(table, true); // Снова открываем таблицу
+            cout << "Команда выполнена успешно!" << endl;
         } else {
             cout << "Ошибка, таблица используется другим пользователем!" << endl;
         }

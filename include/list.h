@@ -31,6 +31,7 @@ struct SinglyLinkedList {
     T getElementAt(size_t index);
     int getIndex(T& value) const;
     Node<T>* getHead() const;
+    T size();
 };
 
 
