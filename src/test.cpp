@@ -134,7 +134,7 @@ struct BaseData {
         }
     }
 
-    // ф-ии делита
+    /// Функции для DELETE FROM ///
     void Delete(string& command) { // ф-ия обработки команды DELETE
         string table, conditions;
         int position = command.find_first_of(' ');
@@ -360,7 +360,7 @@ struct BaseData {
                 string row;
 
                 while (getline(rowString, row)) {
-                    SinglyLinkedList<bool> shouldRemove;
+                    Hash_table<int, bool> shouldRemove; // Используем хэш-таблицу
                     for (int i = 0; i < colonaIndexes.size(); ++i) {
                         stringstream iss(row);
                         string token;
@@ -380,32 +380,37 @@ struct BaseData {
                             currentIndex++;
                         }
 
-                    shouldRemove.pushBack(check);
+                     shouldRemove.insert(i, check);
                     }
 
                     // Проверка логических операторов
                     bool keepRow = true;
                     Filters filterCondition;
                     if (filters.get("0", filterCondition)) {
-                    if (filterCondition.logicOP == "AND") {
-                        keepRow = true;
-                        for (bool shouldBeRemoved : shouldRemove) {
-                            keepRow = keepRow && shouldBeRemoved; // логика AND
-                        }
-                    } else { // Логика OR
-                        keepRow = false;
-                        for (bool shouldBeRemoved : shouldRemove) {
-                            keepRow = keepRow || !shouldBeRemoved; // логика OR
+                        if (filterCondition.logicOP == "AND") {
+                            keepRow = true;
+                            for (int i = 0; i < colonaIndexes.size(); ++i) {
+                                bool shouldBeRemoved;
+                                if (shouldRemove.get(i, shouldBeRemoved)) { // Получаем значение из хэш-таблицы
+                                    keepRow = keepRow && shouldBeRemoved; // логика AND
+                                }
+                            }
+                        } else {
+                            keepRow = false;
+                            for (int i = 0; i < colonaIndexes.size(); ++i) {
+                                bool shouldBeRemoved;
+                                if (shouldRemove.get(i, shouldBeRemoved)) { // Получаем значение из хэш-таблицы
+                                    keepRow = keepRow || !shouldBeRemoved; // логика OR
+                                }
+                            }
                         }
                     }
-                }
 
-                // Если строка должна оставаться, добавляем ее к результату
-                if (keepRow) {
-                    filteredRows += row + "\n";
+                    // Если строка должна оставаться, добавляем ее к результату
+                    if (keepRow) {
+                        filteredRows += row + "\n";
+                    }
                 }
-            }
-
                 filerec(fin, filteredRows);
                 copyCount--;
             }
