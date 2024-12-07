@@ -10,9 +10,9 @@ Hash_table<Key, Value>::Hash_table() {
 template <typename Key, typename Value>
 Hash_table<Key, Value>::~Hash_table() {
     for (size_t i = 0; i < SIZE; ++i) {
-        HNode* current = table[i];
+        HNode<Key, Value>* current = table[i];
         while (current) {
-            HNode* toDelete = current;
+            HNode<Key, Value>* toDelete = current;
             current = current->next; // Освобождение каждой ноды
             delete toDelete;
         }
@@ -21,20 +21,20 @@ Hash_table<Key, Value>::~Hash_table() {
 
 template <typename Key, typename Value>
 int Hash_table<Key, Value>::hashFunction(const Key& key) {
-    hash<string> hashFn;
+    hash<Key> hashFn;
     return hashFn(key) % SIZE;
 }
 
 template <typename Key, typename Value>
 void Hash_table<Key, Value>::insert(const Key& key, const Value& value) {
     int hashValue = hashFunction(key); // Хэш значение соответствующее этому ключу
-    HNode* newPair = new HNode(key, value); // Используем конструктор HNode
+    HNode<Key, Value>* newPair = new HNode(key, value); // Используем конструктор HNode
 
     if(table[hashValue] == nullptr) {
         table[hashValue] = newPair; // Если ячейка пуста, вставляем новый элемент
         sizetable++;
     } else {
-        HNode* current = table[hashValue];
+        HNode<Key, Value>* current = table[hashValue];
         while(current) { 
             if(current->key == key) {
                 current->value = value; // Обновляем значение, если ключ существует
@@ -52,7 +52,7 @@ void Hash_table<Key, Value>::insert(const Key& key, const Value& value) {
 template <typename Key, typename Value>
 bool Hash_table<Key, Value>::get(const Key& key, Value& value) {
     int HashValue = hashFunction(key);
-    HNode* current = table[HashValue];
+    HNode<Key, Value>* current = table[HashValue];
     while(current) {
         if(current->key == key) {
             value = current->value;
@@ -66,8 +66,8 @@ bool Hash_table<Key, Value>::get(const Key& key, Value& value) {
 template <typename Key, typename Value>
 bool Hash_table<Key, Value>::remove(const Key& key) {
     int HashValue = hashFunction(key);
-    HNode* current = table[HashValue];
-    HNode* perv = nullptr;
+    HNode<Key, Value>* current = table[HashValue];
+    HNode<Key, Value>* perv = nullptr;
 
     while(current) {
         if(current->key == key) {

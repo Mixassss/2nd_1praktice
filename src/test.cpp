@@ -142,67 +142,83 @@ struct BaseData {
             table = command.substr(0, position);
             conditions = command.substr(position + 1);
         } else table = command;
-        if (tablesname.getIndex(table) != -1) { // проверка таблицы
-            if (conditions.empty()) { // если нет условий, удаляем все
+        // Проверка существования таблицы в хэш-таблице
+        int fileCount; // Переменная для хранения количества файлов
+        if (fileCountHash.get(table, fileCount)) { // Проверка наличия таблицы
+            if (conditions.empty()) { // Если нет условий, удаляем все
                 delAll(table);
-            } else {
-                if (conditions.substr(0, 6) == "WHERE ") { // проверка наличия where
-                    conditions.erase(0, 6);
-                    SinglyLinkedList<Filters> cond;
-                    Filters filter;
-                    position = conditions.find_first_of(' ');
-                    if (position != -1) { // проверка синтаксиса
-                        filter.column = conditions.substr(0, position);
-                        conditions.erase(0, position+1);
-                        int index = tablesname.getIndex(table);
-                        string str = stlb.getvalue(index);
-                        stringstream ss(str);
-                        bool check = false;
-                        while (getline(ss, str, ',')) if (str == where.column) check = true;
-                        if (check) { // проверка столбца
-                            if (conditions[0] == '=' && conditions[1] == ' ') { // проверка синтаксиса
-                                conditions.erase(0, 2);
-                                position = conditions.find_first_of(' ');
-                                if (position == -1) { // если нет лог. оператора
-                                    where.value = conditions;
-                                    delWithValue(table, where.column, where.value);
-                                } else { // если есть логический оператор
-                                    where.value = conditions.substr(0, position);
-                                    conditions.erase(0, position+1);
-                                    cond.push_back(where);
-                                    position = conditions.find_first_of(' ');
-                                    if ((position != -1) && (conditions.substr(0, 2) == "OR" || conditions.substr(0, 3) == "AND")) {
-                                        where.logicalOP = conditions.substr(0, position);
-                                        conditions.erase(0, position + 1);
-                                        position = conditions.find_first_of(' ');
-                                        if (position != -1) {
-                                            where.column = conditions.substr(0, position);
-                                            conditions.erase(0, position+1);
-                                            index = tablesname.getIndex(table);
-                                            str = stlb.getvalue(index);
-                                            stringstream iss(str);
-                                            bool check = false;
-                                            while (getline(iss, str, ',')) if (str == where.column) check = true;
-                                            if (check) { // проверка столбца
-                                                if (conditions[0] == '=' && conditions[1] == ' ') { // проверка синтаксиса
-                                                    conditions.erase(0, 2);
-                                                    position = conditions.find_first_of(' ');
-                                                    if (position == -1) {
-                                                        where.value = conditions;
-                                                        cond.push_back(where);
-                                                        delWithLogic(cond, table);
-                                                    } else cout << "Ошибка, нарушен синтаксис команды4!" << endl;
-                                                } else cout << "Ошибка, нарушен синтаксис команды3!" << endl;
-                                            } else cout << "Ошибка, нет такого столбца!" << endl;
-                                        } else cout << "Ошибка, нарушен синтаксис команды2!" << endl;
-                                    } else cout << "Ошибка, нарушен синтаксис команды1!" << endl;
+                } else {
+                    if (conditions.substr(0, 6) == "WHERE ") { // проверка наличия where
+                        conditions.erase(0, 6);
+                        Hash_table<string, Filters> yslov; // Используем хэш-таблицу для условий
+                        Filters filter;
+                        position = conditions.find_first_of(' ');
+                        if (position != -1) { // проверка синтаксиса
+                            filter.colona = conditions.substr(0, position);
+                            conditions.erase(0, position + 1);
+                            // Проверка наличия столбца в хэш-таблице
+                            string columnString;
+                            if (coloumnHash.get(table, columnString)) {
+                                stringstream ss(columnString);
+                                bool check = false;
+                                string str;
+                                while (getline(ss, str, ',')) {
+                                    if (str == filter.colona) {
+                                    check = true;
+                                    break;
                                 }
-                            } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
-                        } else cout << "Ошибка, нет такого столбца!" << endl;
+                            }
+                            if (check) { // проверка столбца
+                                if (conditions[0] == '=' && conditions[1] == ' ') { // проверка синтаксиса
+                                    conditions.erase(0, 2);
+                                    position = conditions.find_first_of(' ');
+                                    if (position == -1) { // если нет лог. оператора
+                                        filter.value = conditions;
+                                        deleteValue(table, filter.colona, filter.value);
+                                    } else { // если есть логический оператор
+                                        filter.value = conditions.substr(0, position);
+                                        conditions.erase(0, position+1);
+                                        yslov.insert(filter.colona, filter); // Добавляем в хэш-таблицу
+                                        position = conditions.find_first_of(' ');
+                                        if ((position != -1) && (conditions.substr(0, 2) == "OR" || conditions.substr(0, 3) == "AND")) {
+                                            filter.logicOP = conditions.substr(0, position);
+                                            conditions.erase(0, position + 1);
+                                            position = conditions.find_first_of(' ');
+                                            if (position != -1) {
+                                                filter.colona = conditions.substr(0, position);
+                                                conditions.erase(0, position+1);
+                                                // Проверка наличия столбца во втором условии
+                                                if (coloumnHash.get(table, columnString)) {
+                                                    stringstream iss(columnString);
+                                                    bool check = false;
+                                                    while (getline(iss, str, ',')) {
+                                                        if (str == filter.colona) {
+                                                            check = true;
+                                                            break;
+                                                        }
+                                                    }
+                                                    if (check) { // проверка столбца
+                                                        if (conditions[0] == '=' && conditions[1] == ' ') { // проверка синтаксиса
+                                                            conditions.erase(0, 2);
+                                                            position = conditions.find_first_of(' ');
+                                                            if (position == -1) {
+                                                                filter.value = conditions;
+                                                                yslov.insert(filter.colona, filter); // Добавляем во второе условие
+                                                                deleteFilter(yslov, table);
+                                                            } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
+                                                        } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
+                                                    } else cout << "Ошибка, нет такого столбца!" << endl;
+                                                } else cout << "Ошибка, нет такой таблицы!" << endl;
+                                            } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
+                                        } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
+                                    }
+                                } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
+                            } else cout << "Ошибка, нет такого столбца!" << endl;
+                        } else cout << "Ошибка, нет такой таблицы!" << endl;
                     } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
-                } else cout << "Ошибка, нарушен синтаксис команды!"<< endl;
+                } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
             }
-        } else cout << "Ошибка, нет такой таблицы!" << endl;
+        } else cout << "Ошибка, нет такой таблицы!" << endl; 
     }
 
     void delAll(string& table) { // ф-ия удаления всех строк таблицы
@@ -218,24 +234,35 @@ struct BaseData {
                 return;
             }
 
-            // Цикл для очистки всех файлов таблицы
-            for (int all = 1; all <= fileCount; ++all) {
-                fin = "../" + nameBD + "/" + table + "/" + to_string(all) + ".csv";
-                filerec(fin, ""); // Очищаем содержимое файла
-            }
-
-             // Записываем заголовки в 1.csv
+            // Получаем заголовки из 1.csv
             fin = "../" + nameBD + "/" + table + "/1.csv";
-            filerec(fin, columnString + "\n");
+            ifstream headerFile(fin);
+            if (headerFile.is_open()) {
+                getline(headerFile, columnString); // Читаем заголовки
+                headerFile.close();
+                } else {
+                    cerr << "Не удалось открыть файл для чтения заголовков!" << endl;
+                    return;
+                }
 
-            lockTable(table, true); // Снова открываем таблицу
-            cout << "Команда выполнена успешно!" << endl;
-        } else {
+                // Цикл для очистки всех файлов таблицы, кроме 1.csv
+                for (int all = 1; all <= fileCount; ++all) {
+                    fin = "../" + nameBD + "/" + table + "/" + to_string(all) + ".csv";
+                    if (all == 1) {
+                        filerec(fin, columnString + "\n");
+                    } else {
+                        filerec(fin, ""); // Очищаем содержимое файла
+                    }
+                }
+
+                lockTable(table, true); // Снова открываем таблицу
+                cout << "Команда выполнена успешно!" << endl;
+            } else {
             cout << "Ошибка! Таблица используется другим пользователем!" << endl;
         }
     }
 
-    void delWithValue(string& table, string& stolb, string& values) { // ф-ия удаления строк таблицы по значению
+    void deleteValue(string& table, string& stolb, string& values) { // Функция удаления по значению
         string fin;
         int index = tablesname.getIndex(table);
         if (checkLockTable(table)) {
@@ -312,7 +339,7 @@ struct BaseData {
         }
     }
 
-    void delWithLogic(Hash_table<string, Filters>& filters, string& table) { // ф-ия удаления строк таблицы с логикой
+    void deleteFilter(Hash_table<string, Filters>& filters, string& table) { // Функция удаления по условиям AND и OR
         string fin;
         int index = tablesname.getIndex(table);
         if (checkLockTable(table)) {

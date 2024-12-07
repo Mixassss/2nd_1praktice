@@ -7,5 +7,6 @@ using namespace std;
 #include <fstream>
 #include <sstream>
 #include <filesystem>
+#include <functional>
 
 #endif // UTILITY_H
