@@ -303,6 +303,8 @@ struct BaseData {
             }
 
             int copyCount = fileCount; // Получаем количество файлов таблицы
+            bool valueFound = false; // Флаг для отслеживания, найдено ли значение
+            string filteredLines; // Строка для хранения обновленных данных
             while (copyCount > 0) {
                 fin = "../" + nameBD + "/" + table + "/" + to_string(copyCount) + ".csv";
                 string text = fileread(fin);
@@ -315,28 +317,33 @@ struct BaseData {
                     string token;
                     bool shouldRemove = false;
                     int thisColumnIndex = 0;
+                    string updatedLine;
 
                     while (getline(tokenStream, token, ',')) {
-                        if (thisColumnIndex == colonaIndex && token == values) {
-                            shouldRemove = true;
-                            break;
+                        if (thisColumnIndex == colonaIndex) {
+                            if (token == values) {
+                                valueFound = true; // Значение найдено
+                                token = " "; // Устанавливаем значение в пустую строку
+                            }
+                        }
+                        updatedLine += token; // Добавляем текущий токен
+                        if (tokenStream.peek() != EOF) { // Проверяем, если это не последний токен
+                            updatedLine += ",";
                         }
                         thisColumnIndex++;
                     }
-                if (!shouldRemove) {
-                    filteredLines += textLine + "\n"; 
+                    updatedLine += "\n"; // Добавляем новую строку
+                    filteredLines += updatedLine; // Добавляем обновленную строку в общий результат
                 }
-            }
-
             filerec(fin, filteredLines);
             copyCount--;
         }
+        if (!valueFound) {
+            cerr << "Ошибка: значение '" << values << "' не найдено в столбце '" << stolb << "'." << endl;
+        } else cout << "Команда выполнена успешно!" << endl;
 
         lockTable(table, true); // Снова открываем таблицу
-        cout << "Команда выполнена успешно!" << endl;
-        } else {
-            cout << "Ошибка, таблица используется другим пользователем!" << endl;
-        }
+        } else cout << "Ошибка, таблица используется другим пользователем!" << endl;
     }
 
     void deleteFilter(Hash_table<string, Filters>& filters, string& table) { // Функция удаления по условиям AND и OR
@@ -387,61 +394,43 @@ struct BaseData {
                 string row;
 
                 while (getline(rowString, row)) {
-                    Hash_table<int, bool> shouldRemove; // Используем хэш-таблицу
-                    for (int i = 0; i < colonaIndexes.size(); ++i) {
-                        stringstream iss(row);
-                        string token;
-                        int currentIndex = 0;
-                        bool check = false;
+                bool shouldRemove = false;
 
-                        while (getline(iss, token, ',')) {
-                            if (currentIndex == colonaIndexes.getElementAt(i)) {
-                                Filters filterCondition;
-                                if (filters.get(to_string(i), filterCondition)) {
-                                    if (token == filterCondition.value) {
-                                        check = true;
-                                    }
-                                }   
-                                break; // Выходим из цикла, если нашли нужный индекс
-                            }
-                            currentIndex++;
-                        }
+                // Проверяем все условия
+                for (int i = 0; i < colonaIndexes.size(); ++i) {
+                    stringstream iss(row);
+                    string token;
+                    int currentIndex = 0;
+                    bool match = false;
 
-                     shouldRemove.insert(i, check);
-                    }
-
-                    // Проверка логических операторов
-                    bool keepRow = true;
-                    Filters filterCondition;
-                    if (filters.get("0", filterCondition)) {
-                        if (filterCondition.logicOP == "AND") {
-                            keepRow = true;
-                            for (int i = 0; i < colonaIndexes.size(); ++i) {
-                                bool shouldBeRemoved;
-                                if (shouldRemove.get(i, shouldBeRemoved)) { // Получаем значение из хэш-таблицы
-                                    keepRow = keepRow && shouldBeRemoved; // логика AND
-                                }
-                            }
-                        } else {
-                            keepRow = false;
-                            for (int i = 0; i < colonaIndexes.size(); ++i) {
-                                bool shouldBeRemoved;
-                                if (shouldRemove.get(i, shouldBeRemoved)) { // Получаем значение из хэш-таблицы
-                                    keepRow = keepRow || !shouldBeRemoved; // логика OR
+                    while (getline(iss, token, ',')) {
+                        if (currentIndex == colonaIndexes.getElementAt(i)) {
+                            Filters filterCondition;
+                            if (filters.get(to_string(i), filterCondition)) {
+                                if (token == filterCondition.value) {
+                                    match = true; // Найдено совпадение
+                                    break; // Выходим из цикла
                                 }
                             }
                         }
+                        currentIndex++;
                     }
 
-                    // Если строка должна оставаться, добавляем ее к результату
-                    if (keepRow) {
-                        filteredRows += row + "\n";
+                    // Если не совпадает с условием, помечаем для удаления
+                    if (!match) {
+                        shouldRemove = true;
+                        break; // Удаляем строку, если не все условия выполнены
                     }
                 }
-                filerec(fin, filteredRows);
-                copyCount--;
-            }
 
+                // Если строка не должна быть удалена, добавляем ее к результату
+                if (!shouldRemove) {
+                    filteredRows += row + "\n";
+                }
+            }
+            filerec(fin, filteredRows);
+            copyCount--;
+        }
             lockTable(table, true); // Снова открываем таблицу
             cout << "Команда выполнена успешно!" << endl;
         } else {
