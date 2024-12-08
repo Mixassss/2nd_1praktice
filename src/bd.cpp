@@ -65,7 +65,6 @@ struct BaseData {
             exit(1);
         }
         fin >> Json;
-
         nameBD = Json["name"].get<string>();
         rowLimits = Json["tuples limit"].get<int>();
 
@@ -79,8 +78,7 @@ struct BaseData {
                 for (auto& column : item.value().items()) {
                     columnString += column.value().get<string>() + ",";
                 }
-                // Добавляем первичный ключ
-                columnString = tableName + "_pk," + columnString; 
+                columnString = tableName + "_pk," + columnString; // Добавляем первичный ключ
                 if (!columnString.empty()) columnString.pop_back(); // Убираем последний запятую
                 coloumnHash.insert(tableName, columnString);
                 fileCountHash.insert(tableName, 1);
@@ -94,11 +92,9 @@ struct BaseData {
     void createdirect() {
         string baseDir = "../" + nameBD;
         filesystem::create_directories(baseDir);
-
         for (int i = 0; i < tablesname.elementCount; ++i) {
             string tableName = tablesname.getElementAt(i);
             string tableDir = baseDir + "/" + tableName;
-
             filesystem::create_directories(tableDir);
 
             string columnString;
@@ -113,7 +109,6 @@ struct BaseData {
                 csvFile << columnString << endl; 
                 csvFile.close();
             }
-
             createLockFile(tableDir, tableName);
             createPKFile(tableDir, tableName);
         }
@@ -139,7 +134,6 @@ struct BaseData {
         string fin;
         int index = tablesname.getIndex(table); // Получить индекс таблицы из списка
         string columnString; // Строка для хранения заголовков столбцов
-
         if (checkLockTable(table)) {
             lockTable(table, false); // Закрытие таблицы для работы
             int fileCount;
@@ -147,7 +141,6 @@ struct BaseData {
                 cerr << "Не удалось получить количество файлов для таблицы: " << table << endl;
                 return;
             }
-
             // Получаем заголовки из 1.csv
             fin = "../" + nameBD + "/" + table + "/1.csv";
             ifstream headerFile(fin);
@@ -158,7 +151,6 @@ struct BaseData {
                     cerr << "Не удалось открыть файл для чтения заголовков!" << endl;
                     return;
                 }
-
                 // Цикл для очистки всех файлов таблицы, кроме 1.csv
                 for (int all = 1; all <= fileCount; ++all) {
                     fin = "../" + nameBD + "/" + table + "/" + to_string(all) + ".csv";
@@ -168,7 +160,6 @@ struct BaseData {
                         filerec(fin, ""); // Очищаем содержимое файла
                     }
                 }
-
                 lockTable(table, true); // Снова открываем таблицу
                 cout << "Команда выполнена успешно!" << endl;
             } else {
@@ -181,14 +172,12 @@ struct BaseData {
         int index = tablesname.getIndex(table);
         if (checkLockTable(table)) {
             lockTable(table, false); // Закрытие таблицы для работы
-
             string colonaValues;
             if (!coloumnHash.get(table, colonaValues)) {
                 cerr << "Не удалось получить значения столбца для таблицы: " << table << endl;
                 lockTable(table, true); // Открываем таблицу
                 return;
             }
-
             // Извлекаем индекс столбца
             stringstream ss(colonaValues);
             string columnValue;
@@ -202,20 +191,17 @@ struct BaseData {
                 }
                 thisIndex++;
             }
-
             if (colonaIndex == -1) {
                 cerr << "Столбец не найден!" << endl;
                 lockTable(table, true); // Открываем таблицу
                 return;
             }
-
             int fileCount;
             if (!fileCountHash.get(table, fileCount)) {
                 cerr << "Не удалось получить количество файлов для таблицы: " << table << endl;
                 lockTable(table, true); // Открываем таблицу
                 return;
             }
-
             int copyCount = fileCount; // Получаем количество файлов таблицы
             bool valueFound = false; // Флаг для отслеживания, найдено ли значение
             string filteredLines; // Строка для хранения обновленных данных
@@ -225,7 +211,6 @@ struct BaseData {
                 stringstream lineStream(text);
                 string filteredLines;
                 string textLine;
-
                 while (getline(lineStream, textLine)) {
                     stringstream tokenStream(textLine);
                     string token;
@@ -253,137 +238,79 @@ struct BaseData {
             copyCount--;
         }
         if (!valueFound) {
-            cerr << "Ошибка: значение '" << values << "' не найдено в столбце '" << stolb << "'." << endl;
+            cerr << "Ошибка! Значение '" << values << "' не найдено в столбце '" << stolb << "'." << endl;
         } else cout << "Команда выполнена успешно!" << endl;
-
         lockTable(table, true); // Снова открываем таблицу
-        } else cout << "Ошибка, таблица используется другим пользователем!" << endl;
+        } else cout << "Ошибка! Таблица используется другим пользователем!" << endl;
     }
 
     void deleteFilter(Hash_table<string, Filters>& filters, string& table) { // Функция удаления по условиям AND и OR
-        string fin;
-        int index = tablesname.getIndex(table);
+        string filepath;
+        int index = tablesname.getElementAt(table);
         if (checkLockTable(table)) {
             lockTable(table, false); // Закрытие таблицы для работы
 
-            // Нахождение индекса столбцов в файле
-            SinglyLinkedList<int> colonaIndexes;
-            string columnValue;
-
-            // Получаем все условия из хэш-таблицы
+            SinglyLinkedList<int> stlbindex; // Нахождение индекса столбцов в файле
             for (int i = 0; i < filters.size(); ++i) {
-                Filters filterCondition;
-                if (filters.get(to_string(i), filterCondition)) {
-                    if (coloumnHash.get(table, columnValue)) {
-                        stringstream ss(columnValue);
-                        string column;
-                        int idx = 0;
-
-                        while (getline(ss, column, ',')) {
-                            if (column == filterCondition.colona) {
-                                colonaIndexes.pushBack(idx);
-                                break;
-                            }
-                            idx++;
-                        }   
-                    } else {
-                        cerr << "Столбцы не найдены для таблицы: " << table << endl;
-                        return;
+                string str = stlb.getvalue(index);
+                stringstream ss(str);
+                int stolbecindex = 0;
+                while (getline(ss, str, ',')) {
+                    if (str == filters.getvalue(i).column) {
+                        stlbindex.pushBack(stolbecindex);
+                        break;
                     }
+                    stolbecindex++;
                 }
             }
-            
             // Удаление строк
-            int copyCount;
-            if (!fileCountHash.get(table, copyCount)) {
-                cerr << "Не удалось получить количество файлов для таблицы: " << table << endl;
-                return;
-            }
-
-            while (copyCount > 0) {
-                fin = "../" + nameBD + "/" + table + "/" + to_string(copyCount) + ".csv";
-                string text = fileread(fin);
-                stringstream rowString(text);
+            int copy = fileindex.getvalue(index);
+            while (copy != 0) {
+                filepath = "../" + nameBD + "/" + table + "/" + to_string(copy) + ".csv";
+                string text = fileread(filepath);
+                stringstream stroka(text);
                 string filteredRows;
-                string row;
-
-                while (getline(rowString, row)) {
-                    stringstream tokenStream(row);
-                    string token;
-                    bool shouldDelete = false;
-
-                    for (int i = 0; i < filters.size(); ++i) {
-                        Filters filterCondition;
-                        filters.get(to_string(i), filterCondition);
-                    
+                while (getline(stroka, text)) {
+                    SinglyLinkedList<bool> shouldRemove;
+                    for (int i = 0; i < stlbindex.size(); ++i) {
+                        stringstream iss(text);
+                        string token;
                         int currentIndex = 0;
-                        bool conditionMet = false;
-
-                        while (getline(tokenStream, token, ',')) {
-                            if (currentIndex == colonaIndexes.getElementAt(i)) {
-                                // Убираем пробелы
-                                token.erase(remove(token.begin(), token.end(), ' '), token.end());
-                                string valueToCompare = filterCondition.value;
-                                valueToCompare.erase(remove(valueToCompare.begin(), valueToCompare.end(), ' '), valueToCompare.end());
-                                // Убираем кавычки
-                                if (valueToCompare.front() == '\'' && valueToCompare.back() == '\'') {
-                                    valueToCompare = valueToCompare.substr(1, valueToCompare.size() - 2);
-                                }
-                                if (token == valueToCompare) {
-                                    conditionMet = true;
-                                }
+                        bool check = false;
+                        while (getline(iss, token, ',')) { 
+                            if (currentIndex == stlbindex.getvalue(i) && token == filters.getvalue(i).value) {
+                                check = true;
                                 break;
                             }
                             currentIndex++;
                         }
-
-                        if (i > 0) {
-                            Filters previousCondition;
-                            filters.get(to_string(i - 1), previousCondition);
-
-                            if (previousCondition.logicOP == "AND") {
-                                if (!conditionMet) {
-                                    shouldDelete = false;
-                                    break;
-                                }
-                                shouldDelete = true;
-                            } else if (previousCondition.logicOP == "OR") {
-                                if (conditionMet) {
-                                    shouldDelete = true;
-                                    break;
-                                }
-                            }
-                        } else {
-                            shouldDelete = conditionMet;
-                        }
+                        if (check) shouldRemove.pushBack(true);
+                        else shouldRemove.pushBack(false);
                     }
-
-                    if (shouldDelete) {
-                        continue; // Пропускаем строку
+                    if (filters.get(1).logicalOP == "and") { // Если оператор И
+                        if (shouldRemove.getvalue(0) && shouldRemove.getvalue(1));
+                        else filteredRows += text + "\n";
+                    } else { // Если оператор ИЛИ
+                        if (!(shouldRemove.getvalue(0)) && !(shouldRemove.getvalue(1))) filteredRows += text + "\n";
                     }
-                    filteredRows += row + "\n"; // Добавляем строку, если она не удалена
                 }
-                filerec(fin, filteredRows);
-                copyCount--;
+                filerec(filepath, filteredRows);
+                copy--;
             }
             lockTable(table, true); // Снова открываем таблицу
-            cout << "Команда выполнена успешно!" << endl;
-        } else {
-            cout << "Ошибка, таблица используется другим пользователем!" << endl;
-        }
+            cout << "Команда выполнена!" << endl;
+        } else cout << "Ошибка, таблица используется другим пользователем!" << endl;
     }
 
     void Delete(string& command) {
         string table, conditions;
         size_t position = command.find(' ');
-        
         if (position != string::npos) {
             table = command.substr(0, position);
             conditions = command.substr(position + 1);
         } else {
             table = command;
         }
-
         int fileCount;
         if (!fileCountHash.get(table, fileCount)) {
             cout << "Ошибка, нет такой таблицы!" << endl;
@@ -399,7 +326,6 @@ struct BaseData {
             cout << "Ошибка, нарушен синтаксис команды!" << endl;
             return;
         }
-
         conditions.erase(0, 6); // Удаляем "WHERE "
         Hash_table<string, Filters> yslov;
         Filters filter;
@@ -409,21 +335,17 @@ struct BaseData {
             cout << "Ошибка, нарушен синтаксис команды!" << endl;
             return;
         }
-
         filter.colona = conditions.substr(0, position);
         conditions.erase(0, position + 1);
-
         string columnString;
         if (!coloumnHash.get(table, columnString) || !isColumnValid(columnString, filter.colona)) {
-            cout << "Ошибка, нет такого столбца!" << endl;
+            cout << "Ошибка! Нет такого столбца!" << endl;
             return;
         }
-
         if (conditions.substr(0, 2) != "= ") {
-            cout << "Ошибка, нарушен синтаксис команды!" << endl;
+            cout << "Ошибка! Нарушен синтаксис команды!" << endl;
             return;
         }
-
         conditions.erase(0, 2);
         position = conditions.find(' ');
 
@@ -432,13 +354,11 @@ struct BaseData {
             deleteValue(table, filter.colona, filter.value);
             return;
         }
-
         filter.value = conditions.substr(0, position);
         conditions.erase(0, position + 1);
         yslov.insert(filter.colona, filter);
-
         if (!parseLogicalConditions(conditions, yslov, table)) {
-            cout << "Ошибка, нарушен синтаксис команды!" << endl;
+            cout << "Ошибка! Нарушен синтаксис команды!" << endl;
         } else {
             deleteFilter(yslov, table);
         }
@@ -455,35 +375,28 @@ struct BaseData {
 
     bool parseLogicalConditions(string& conditions, Hash_table<string, Filters>& yslov, const string& table) {
         size_t position = conditions.find(' ');
-
         if (position == string::npos || (conditions.substr(0, 2) != "OR" && conditions.substr(0, 3) != "AND")) {
             return false;
         }
-
         string logicOp = conditions.substr(0, position);
         conditions.erase(0, position + 1);
-        
         position = conditions.find(' ');
         if (position == string::npos) return false;
 
         Filters filter;
         filter.colona = conditions.substr(0, position);
         conditions.erase(0, position + 1);
-
         string columnString;
         if (!coloumnHash.get(table, columnString) || !isColumnValid(columnString, filter.colona)) {
             cout << "Ошибка, нет такого столбца!" << endl;
             return false;
         }
-
         if (conditions.substr(0, 2) != "= ") {
             return false;
         }
-
         conditions.erase(0, 2);
         filter.value = conditions;
         yslov.insert(filter.colona, filter);
-
         return true;
     }
 
@@ -495,8 +408,7 @@ struct BaseData {
             return;
         }
 
-        // Увеличиваем первичный ключ
-        string pkFilePath = "../" + nameBD + "/" + table + "/" + table + "_pk_sequence.txt";
+        string pkFilePath = "../" + nameBD + "/" + table + "/" + table + "_pk_sequence.txt"; // Увеличиваем первичный ключ
         string pkValue = fileread(pkFilePath);
         if (pkValue.empty()) {
             cerr << "Ошибка! Не удалось прочитать значение первичного ключа!" << endl;
@@ -504,31 +416,25 @@ struct BaseData {
         }
         int pkInt = stoi(pkValue); // Текущий первичный ключ (не увеличиваем здесь)
         filerec(pkFilePath, to_string(pkInt + 1));
-
-        // Обработка количества файлов
-        int fileCount;
+        int fileCount; // Обработка количества файлов
         if (!fileCountHash.get(table, fileCount)) {
             cerr << "Ошибка: Не удалось получить количество файлов для таблицы " << table << endl;
             return;
         }
 
         string csvFilePath = "../" + nameBD + "/" + table + "/" + to_string(fileCount) + ".csv";
-
-        // Проверка количества строк
-        int lineCount = countingLine(csvFilePath);
+        int lineCount = countingLine(csvFilePath); // Проверка количества строк
         if (lineCount >= rowLimits) {
             ++fileCount; // Создаем новый файл
             fileCountHash.remove(table);
             fileCountHash.insert(table, fileCount);
             csvFilePath = "../" + nameBD + "/" + table + "/" + to_string(fileCount) + ".csv";
         }
-
         ofstream csvFile(csvFilePath, ios::app);
         if (!csvFile.is_open()) {
             cerr << "Ошибка с открытием файла " << csvFilePath << " для записи!" << endl;
             return;
         }
-
         if (lineCount == 0) {
             string columnString; // Запись заголовков в файл, если он пуст
             if (!coloumnHash.get(table, columnString)) {
@@ -537,11 +443,8 @@ struct BaseData {
             }
             csvFile << columnString << endl;
         }
-
-        // Запись значения с первичным ключом
-        csvFile << pkInt << ',' << values << '\n'; 
+        csvFile << pkInt << ',' << values << '\n'; // Запись значения с первичным ключом
         csvFile.close();
-
         cout << "Команда выполнена успешно!" << endl;
     }
 
@@ -553,56 +456,45 @@ struct BaseData {
             cout << "Ошибка! Синтаксис команды нарушен!" << endl;
             return;
         }
-
         string table = command.substr(0, position); // Извлечение названия таблицы
         command.erase(0, position + 1); // Удаление названия таблицы из команды
-
-        // Удаление пробелов до и после названия таблицы
-        table.erase(remove_if(table.begin(), table.end(), ::isspace), table.end());
+        table.erase(remove_if(table.begin(), table.end(), ::isspace), table.end()); // Удаление пробелов до и после названия таблицы
 
         if (!tablesname.find(table)) {
             cout << "Ошибка! Таблица не найдена!" << endl;
             return;
         }
-
         if (command.substr(0, valuesPrefix.size()) != valuesPrefix) {
             cout << "Ошибка! Префикс VALUES отсутствует!" << endl;
             return;
         }
-
         command.erase(0, valuesPrefix.size() + 1); // Удаление префикса VALUES и пробела
         position = command.find_first_of(')'); 
-
         if (position == string::npos || command.empty() || 
             command.front() != '(' || command.back() != ')') {
             cout << "Ошибка! Синтаксис команды нарушен!" << endl;
             return;
         }
-
         command.erase(0, 1); // Удаление открывающей скобки
         command.pop_back();   // Удаление закрывающей скобки
         command.erase(remove_if(command.begin(), command.end(), ::isspace), command.end()); // Удаление пробелов
-
         string columnData; // Получаем названия столбцов и проверяем количество
         if (!coloumnHash.get(table, columnData)) {
             cerr << "Ошибка! Не удалось получить названия столбцов для таблицы " << table << endl;
             return;
         }
-
         // Подсчет количества столбцов
         int countColumns = count(columnData.begin(), columnData.end(), ',') + 1; // Количество столбцов
         int countValues = count(command.begin(), command.end(), ',') + 1; // Количество значений
-
         if (countColumns != countValues + 1) { // +1 для первичного ключа
             cout << "Ошибка! Количество значений не совпадает с количеством колонок!" << endl;
             return;
         }
-
         checkInsert(table, command); // Вызов функции вставки
     }
 
 
-    // ф-ии селекта
+    /// Функции для SELECTA ///
     // void isValidSelect(string& command) { // ф-ия проверки ввода команды select
     //     Where conditions;
     //     SinglyLinkedList<Where> cond;
@@ -1074,7 +966,6 @@ int main() {
 
     airport.parser();
     airport.createdirect();
-
     string command;
     while (true) {
         cout << endl << "Вводите команду: ";
