@@ -28,6 +28,7 @@ struct Hash_table {
     bool get(const Key& key, Value& value);
     bool remove(const Key& key);
     int size() const;
+    Key getKeyAt(int index) const;
 };
 
 #include "../src/hash_table.cpp"
