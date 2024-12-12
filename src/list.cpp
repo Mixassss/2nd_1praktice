@@ -154,6 +154,6 @@ Node<T>* SinglyLinkedList<T>::getHead() const {
 }
 
 template <typename T>
-T SinglyLinkedList<T>::size() {
+size_t SinglyLinkedList<T>::size() {
     return elementCount;
 }
