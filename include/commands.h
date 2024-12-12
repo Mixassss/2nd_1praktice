@@ -11,7 +11,7 @@ string fileread (const string& filename); // Производим чтение �
 void filerec (const string& filename, const string& data); // Производим запись в файл
 
 struct BaseData {
-    string nameBD; // Название БД
+    string BD; // Название БД
     int rowLimits; // Лимит строк
     SinglyLinkedList<string> tablesname; // Список названий таблиц
     Hash_table<string, string> coloumnHash; // Хэш таблица для работы со столбцами
@@ -34,6 +34,8 @@ struct BaseData {
     void deleteZnach(string& table, string& stolbec, string& values); // Функция удаления строк по значению
     void deleteFilter(Hash_table<string, Filters>& filter, string& table); //Функция удаления по условию
     void Delete(string& command);
+    bool isColumnValid(const string& columnString, const string& column);
+    bool processLogicalOperator(string& conditions, Hash_table<string, Filters>& yslov, const string& table);
 
     /// Вспомогательные функции ///
     bool checkLockTable(string table); // Функция проверки открытия таблицы

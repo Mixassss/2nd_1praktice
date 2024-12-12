@@ -11,7 +11,7 @@ void BaseData::parser() {
         exit(1);
     }
     fin >> Json;
-    nameBD = Json["name"].get<string>();
+    BD = Json["name"].get<string>();
     rowLimits = Json["tuples limit"].get<int>();
 
     if (Json.contains("structure") && Json["structure"].is_object()) {
@@ -36,7 +36,7 @@ void BaseData::parser() {
 }
 
 void BaseData::createdirect() {
-    string baseDir = "../" + nameBD;
+    string baseDir = "../" + BD;
     filesystem::create_directories(baseDir);
     for (int i = 0; i < tablesname.elementCount; ++i) {
         string tableName = tablesname.getElementAt(i);
