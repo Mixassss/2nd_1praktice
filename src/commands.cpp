@@ -265,67 +265,78 @@ void BaseData::deleteFilter(Hash_table<string, Filters>& filter, string& table) 
             return; // Или обработка ошибки
         }
 
-        while (copy != 0) {
-            filepath = "../" + BD + "/" + table + "/" + to_string(copy) + ".csv";
-            string text = fileread(filepath);
-            stringstream stroka(text);
-            string filteredRows;
-            string line;
+        bool anyRowDeleted = false; // Флаг для отслеживания, была ли удалена хотя бы одна строка
 
-            while (getline(stroka, line)) {
-                bool shouldRemove = false;
-                SinglyLinkedList<bool> shouldRemoveConditions;
-                for (int i = 0; i < stlbindex.size(); ++i) { // Проверяем каждую строку на соответствие фильтрам
-                    stringstream iss(line);
-                    string token;
-                    int currentIndex = 0;
-                    bool check = false;
-                    Filters filterValue; // Объявление здесь для использования в этом контексте
-                    if (filter.get(filter.getKeyAt(i), filterValue)) {
-                        while (getline(iss, token, ',')) {
-                            if (currentIndex == stlbindex.getElementAt(i)) {
-                                if (token == filterValue.value) {
-                                    check = true;
-                                }
-                                break; // Выходим из цикла, так как нашли нужный индекс
-                            }
-                            currentIndex++;
+    while (copy != 0) {
+        filepath = "../" + BD + "/" + table + "/" + to_string(copy) + ".csv";
+        string text = fileread(filepath);
+        stringstream stroka(text);
+        string filteredRows;
+        string line;
+
+        while (getline(stroka, line)) {
+            bool shouldRemove = false;
+            bool firstCondition = true; // Флаг для отслеживания первой проверки условия
+            bool result = true; // Результат логического выражения
+
+            for (int i = 0; i < stlbindex.size(); ++i) {
+                stringstream iss(line);
+                string token;
+                int currentIndex = 0;
+                bool checkCondition = false; // Условие для текущего фильтра
+
+                Filters filterValue;
+                if (filter.get(filter.getKeyAt(i), filterValue)) {
+                    while (getline(iss, token, ',')) {
+                        if (currentIndex == stlbindex.getElementAt(i)) {
+                            // Отладочный вывод для проверки значений
+                            cout << "Проверка: " << token << " против " << filterValue.value << endl;
+                            checkCondition = (token == filterValue.value);
+                            break; // Выходим из цикла, как только нашли нужный индекс
                         }
+                        currentIndex++;
                     }
-                    shouldRemoveConditions.pushBack(check);
-                }
 
-                bool allConditionsMet = true; // Логика фильтрации
-                for (int i = 0; i < shouldRemoveConditions.size(); ++i) {
-                    Filters filterValue;
-                    if (filter.get(filter.getKeyAt(i), filterValue)) {
+                    // Обработка логических операторов
+                    if (firstCondition) {
+                        result = checkCondition; // Инициализация результата для первого условия
+                        firstCondition = false;
+                    } else {
                         if (filterValue.logicOP == "AND") {
-                            if (!shouldRemoveConditions.getElementAt(i)) {
-                                allConditionsMet = false;
-                                break;
-                            }
+                            result = result && checkCondition; // Логическое 'AND'
                         } else if (filterValue.logicOP == "OR") {
-                            if (shouldRemoveConditions.getElementAt(i)) {
-                                allConditionsMet = true;
-                                break;
-                            } else {
-                                allConditionsMet = false; // Если ни одно условие не выполнено
-                            }
+                            result = result || checkCondition; // Логическое 'OR'
                         }
                     }
                 }
-                if (!allConditionsMet) { // Добавляем строку в результат, если она не должна быть удалена
-                    filteredRows += line + "\n";
-                }
             }
-            if (!filteredRows.empty()) { // Записываем отфильтрованные строки обратно в файл
-                filteredRows.pop_back(); // Убираем последний символ новой строки
+
+            // Если результат всех условий true, строка должна быть удалена
+            if (result) {
+                shouldRemove = true;
+                anyRowDeleted = true; // Устанавливаем флаг, что хотя бы одна строка была удалена
             }
-            filerec(filepath, filteredRows);
-            copy--;
+
+            // Добавляем строку в результат, если она не должна быть удалена
+            if (!shouldRemove) {
+                filteredRows += line + "\n";
+            }
         }
-        lockTable(table, true);
+
+        if (!filteredRows.empty()) { // Записываем отфильтрованные строки обратно в файл
+            filteredRows.pop_back(); // Убираем последний символ новой строки
+            filerec(filepath, filteredRows);
+        }   
+        copy--;
+    }
+
+    if (anyRowDeleted) {
         cout << "Команда выполнена!" << endl;
+    } else {
+        cout << "Ошибка: Не найдено строк для удаления." << endl;
+    }
+
+        lockTable(table, true);
     } else {
         cout << "Ошибка, таблица используется другим пользователем!" << endl;
     }
@@ -622,7 +633,28 @@ bool BaseData::processLogicalOperator(string& conditions, Hash_table<string, Fil
     //     } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
     // }
 
+void BaseData::select(SinglyLinkedList<Filters>& filter) { // Функция селекта
+    for (int i = 0; i < filter.size; ++i) {
+        bool check = checkLockTable(filter.getvalue(i).table);
+        if (!check) {
+            cout << "Ошибка, таблица открыта другим пользователем!" << endl;
+            return;
+        }
+    }
+    string filepath;
+    for (int i = 0; i < filter.size; ++i) {
+        filepath = "../" + BD + '/' + filter.getvalue(i).table + '/' + conditions.getvalue(i).table + "_lock.txt";
+        foutput(filepath, "close");
+    }
 
+    SinglyLinkedList<int> stlbindex = findIndexStlb(conditions); // узнаем индексы столбцов после "select"
+    SinglyLinkedList<string> tables = textInput(conditions); // записываем данные из файла в переменные для дальнейшей работы
+    sample(stlbindex, tables); // выборка
+    for (int i = 0; i < conditions.size; ++i) {
+        filepath = "../" + BD + '/' + conditions.getvalue(i).table + '/' + conditions.getvalue(i).table + "_lock.txt";
+        foutput(filepath, "open");
+    }
+}
 
     // void selectWithValue(SinglyLinkedList<Where>& conditions, string& table, string& stolbec, struct Where value) { // ф-ия селекта с where для обычного условия
     //     for (int i = 0; i < conditions.size; ++i) {
@@ -767,36 +799,39 @@ bool BaseData::processLogicalOperator(string& conditions, Hash_table<string, Fil
     //     }
     // }
 
-    bool BaseData::checkLockTable(string table) {
-        string fin = "../" + BD + "/" + table + "/" + table + "_lock.txt";
-        string check = fileread(fin);
-        return check == "open"; // Возврат статуса блокировки
-    }
+bool BaseData::checkLockTable(string table) {
+    string fin = "../" + BD + "/" + table + "/" + table + "_lock.txt";
+    string check = fileread(fin);
+    return check == "open"; // Возврат статуса блокировки
+}
 
-    void BaseData::lockTable(string& table, bool open) {
-        string fin = "../" + BD + "/" + table + "/" + table + "_lock.txt";
-        filerec(fin, open ? "open" : "close");
-    }
+void BaseData::lockTable(string& table, bool open) {
+    string fin = "../" + BD + "/" + table + "/" + table + "_lock.txt";
+    filerec(fin, open ? "open" : "close");
+}
 
-    // SinglyLinkedList<string> textInFile(SinglyLinkedList<Where>& conditions) { // ф-ия инпута текста из таблиц(для select)
-    //     string filepath;
-    //     SinglyLinkedList<string> tables;
-    //     for (int i = 0; i < conditions.size; ++i) {
-    //         string filetext;
-    //         int index = nametables.getindex(conditions.getvalue(i).table);
-    //         int iter = 0;
-    //         do {
-    //             iter++;
-    //             filepath = "../" + nameBD + '/' + conditions.getvalue(i).table + '/' + to_string(iter) + ".csv";
-    //             string text = finput(filepath);
-    //             int position = text.find('\n'); // удаляем названия столбцов
-    //             text.erase(0, position + 1);
-    //             filetext += text + '\n';
-    //         } while (iter != fileindex.getvalue(index));
-    //         tables.push_back(filetext);
-    //     }
-    //     return tables;
-    // }
+Hash_table<string, string> BaseData::textInput(Hash_table<string, Filters>& filter) {
+    string fin;
+    Hash_table<string, string> tables; // Хэш-таблица для хранения текста из файлов
+    for (int i = 0; i < filter.size(); ++i) {
+        string filetext;
+        string tableName = filter.getKeyAt(i); // Получаем имя таблицы из условий
+        int index = tablesname.getIndex(tableName);
+        int fileCount = 0; // Переменная для хранения количества файлов
+        if (!fileCountHash.get(tableName, fileCount)) { // Получаем количество файлов для данной таблицы
+            throw runtime_error("Не удалось получить количество файлов для таблицы: " + tableName);
+        }
+        for (int iter = 1; iter <= fileCount; ++iter) {
+            fin = "../" + BD + '/' + tableName + '/' + to_string(iter) + ".csv";
+            string text = fileread(fin);
+            int position = text.find('\n'); // Удаляем названия столбцов
+            text.erase(0, position + 1);
+            filetext += text + '\n';
+        }
+        tables.insert(tableName, filetext); // Сохраняем текст в хэш-таблицу с именем таблицы как ключ
+    }
+    return tables; // Возвращаем хэш-таблицу с текстами
+}
 
     // SinglyLinkedList<string> findStlbTable(SinglyLinkedList<Where>& conditions, SinglyLinkedList<string>& tables, int stlbindexvalnext, string table) { // ф-ия инпута нужных колонок из таблиц для условиястолбец(для select)
     //     SinglyLinkedList<string> column;
@@ -820,3 +855,40 @@ bool BaseData::processLogicalOperator(string& conditions, Hash_table<string, Fil
     //     }
     //     return column;
     // }
+
+void BaseData::sample(Hash_table<int, string>& table) { // Функция выбора
+    for (int i = 0; i < table.size() - 1; ++i) {
+        string currentTable;
+        if (table.get(i, currentTable)) { // Получаем строку таблицы по индексу
+            stringstream onefile(currentTable);
+            string token;
+            while (getline(onefile, token)) {
+                string needstlb;
+                stringstream ionefile(token);
+                int currentIndex = 0;
+                while (getline(ionefile, token, ',')) {
+                    if (currentIndex == i) {
+                        needstlb = token;
+                        break;
+                    }
+                    currentIndex++;
+                }
+                string nextTable; // Получаем следующую таблицу
+                if (table.get(i + 1, nextTable)) {
+                    stringstream twofile(nextTable);
+                    while (getline(twofile, token)) {
+                        stringstream itwofile(token);
+                        currentIndex = 0;
+                        while (getline(itwofile, token, ',')) {
+                            if (currentIndex == i + 1) {
+                                cout << needstlb << ' ' << token << endl;
+                                break;
+                            }
+                            currentIndex++;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

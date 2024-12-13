@@ -36,11 +36,14 @@ struct BaseData {
     void Delete(string& command);
     bool isColumnValid(const string& columnString, const string& column);
     bool processLogicalOperator(string& conditions, Hash_table<string, Filters>& yslov, const string& table);
+    void select(SinglyLinkedList<Filters>& filter); // Функция команды select
 
     /// Вспомогательные функции ///
     bool checkLockTable(string table); // Функция проверки открытия таблицы
     void lockTable(string& table, bool open); // Функция закрытия таблицы
     void commands(string& command); // Функция ввода команд
+    void sample(Hash_table<int, string>& table); // Функция выбора
+    Hash_table<string, string> textInput(Hash_table<string, Filters>& conditions); // Функция инпута текста из таблиц
 };
 
 #include "../src/commands.cpp"

@@ -122,16 +122,16 @@ void SinglyLinkedList<T>::clearSList() {
 
 template <typename T>
 T SinglyLinkedList<T>::getElementAt(size_t index) {
-    Node<T>* current = head;
-    size_t currentIndex = 0;
-    while (current != nullptr) {
-        if (currentIndex == index) {
-            return current->data;
-        }
-        current = current->next;
-        currentIndex++;
+    if (index < 0 || index >= size()) {
+        throw out_of_range("Index out of range");
     }
-    return T(); // Возвращаем пустую строку, если индекс вне диапазона
+
+    Node<T>* current = head;
+    for (int i = 0; i < index; i++) {
+        current = current->next;
+    }
+
+    return current->data;
 }
 
 template <typename T>
