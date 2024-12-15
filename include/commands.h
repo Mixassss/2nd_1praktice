@@ -20,6 +20,7 @@ struct BaseData {
     struct Filters { // Структура для фильтрации
         string colona; // Имя столбца
         string value; // Значение для сравнения
+        string table;
         string logicOP; // Логический оператор (AND/OR)
     };
 
@@ -36,13 +37,16 @@ struct BaseData {
     void Delete(string& command);
     bool isColumnValid(const string& columnString, const string& column);
     bool processLogicalOperator(string& conditions, Hash_table<string, Filters>& yslov, const string& table);
-    void select(SinglyLinkedList<Filters>& filter); // Функция команды select
+    void select(Hash_table<string, Filters>& filter); // Функция команды select
 
     /// Вспомогательные функции ///
     bool checkLockTable(string table); // Функция проверки открытия таблицы
     void lockTable(string& table, bool open); // Функция закрытия таблицы
     void commands(string& command); // Функция ввода команд
-    void sample(Hash_table<int, string>& table); // Функция выбора
+    void sample(Hash_table<int, string>& stlbindex, Hash_table<int, string>& tables); // Функция выбора
+    int findIndexStlbCond(string table, string stolbec);
+    SinglyLinkedList<int> BaseData::findIndexStlb(SinglyLinkedList<Filters>& conditions);
+    Hash_table<string, string> findTable(SinglyLinkedList<Filters>& filters, Hash_table<string, string>& tablesHash, int stlbindexvalnext, string table);
     Hash_table<string, string> textInput(Hash_table<string, Filters>& conditions); // Функция инпута текста из таблиц
 };
 

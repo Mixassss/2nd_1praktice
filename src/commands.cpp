@@ -633,29 +633,44 @@ bool BaseData::processLogicalOperator(string& conditions, Hash_table<string, Fil
     //     } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
     // }
 
-void BaseData::select(SinglyLinkedList<Filters>& filter) { // Функция селекта
-    for (int i = 0; i < filter.size; ++i) {
-        bool check = checkLockTable(filter.getvalue(i).table);
+void BaseData::select(Hash_table<string, Filters>& filter) { // Функция селекта
+    for (int i = 0; i < filter.size(); ++i) { // Проверка блокировки таблиц
+        Filters currentFilter;
+        if (!filter.get(filter.getKeyAt(i), currentFilter)) {
+            throw runtime_error("Фильтр не найден по ключу");
+        }
+        bool check = checkLockTable(currentFilter.table);
         if (!check) {
             cout << "Ошибка, таблица открыта другим пользователем!" << endl;
             return;
         }
     }
-    string filepath;
-    for (int i = 0; i < filter.size; ++i) {
-        filepath = "../" + BD + '/' + filter.getvalue(i).table + '/' + conditions.getvalue(i).table + "_lock.txt";
-        foutput(filepath, "close");
+
+    // Закрытие таблиц
+    for (int i = 0; i < filter.size(); ++i) {
+        Filters currentFilter;
+        if (!filter.get(filter.getKeyAt(i), currentFilter)) {
+            throw runtime_error("Фильтр не найден по ключу");
+        }
+        string filepath = "../" + BD + '/' + currentFilter.table + '/' + currentFilter.table + "_lock.txt";
+        filerec(filepath, "close");
     }
 
-    SinglyLinkedList<int> stlbindex = findIndexStlb(conditions); // узнаем индексы столбцов "select"
-    SinglyLinkedList<string> tables = textInput(conditions); // записываем данные из файла в переменные для дальнейшей работы
-    sample(stlbindex, tables); // выборка
-    for (int i = 0; i < conditions.size; ++i) {
-        filepath = "../" + BD + '/' + conditions.getvalue(i).table + '/' + conditions.getvalue(i).table + "_lock.txt";
-        foutput(filepath, "open");
+    // Узнаем индексы столбцов "select" и записываем данные из файла
+    Hash_table<string, int> stlbindex = findIndexStlb(filter);
+    Hash_table<string, string> tables = textInput(filter);
+    sample(stlbindex, tables); // Выполнение выборки
+
+    for (int i = 0; i < filter.size(); ++i) {  // Открытие таблиц после работы
+        Filters currentFilter;
+        if (!filter.get(filter.getKeyAt(i), currentFilter)) {
+            throw runtime_error("Фильтр не найден по ключу");
+        }
+
+        string filepath = "../" + BD + '/' + currentFilter.table + '/' + currentFilter.table + "_lock.txt";
+        filerec(filepath, "open");
     }
 }
-
     // void selectWithValue(SinglyLinkedList<Where>& conditions, string& table, string& stolbec, struct Where value) { // ф-ия селекта с where для обычного условия
     //     for (int i = 0; i < conditions.size; ++i) {
     //         bool check = checkLockTable(conditions.getvalue(i).table);
@@ -810,83 +825,130 @@ void BaseData::lockTable(string& table, bool open) {
     filerec(fin, open ? "open" : "close");
 }
 
-Hash_table<string, string> BaseData::textInput(Hash_table<string, Filters>& filter) {
-    string fin;
-    Hash_table<string, string> tables; // Хэш-таблица для хранения текста из файлов
-    for (int i = 0; i < filter.size(); ++i) {
-        string filetext;
-        string tableName = filter.getKeyAt(i); // Получаем имя таблицы из условий
-        int index = tablesname.getIndex(tableName);
-        int fileCount = 0; // Переменная для хранения количества файлов
-        if (!fileCountHash.get(tableName, fileCount)) { // Получаем количество файлов для данной таблицы
-            throw runtime_error("Не удалось получить количество файлов для таблицы: " + tableName);
+SinglyLinkedList<int> BaseData::findIndexStlb(SinglyLinkedList<Filters>& filters) { // ф-ия нахождения индекса столбцов(для select)
+    SinglyLinkedList<int> stlbindex;
+    for (int i = 0; i < filters.size(); ++i) {
+        int index = tablesname.getIndex(filters.getElementAt(i).table);
+        string str = coloumnHash.get(index);
+        stringstream ss(str);
+        int stolbecindex = 0;
+        while (getline(ss, str, ',')) {
+            if (str == filters.getElementAt(i).colona) {
+                stlbindex.pushBack(stolbecindex);
+                break;
+            }
+            stolbecindex++;
         }
-        for (int iter = 1; iter <= fileCount; ++iter) {
-            fin = "../" + BD + '/' + tableName + '/' + to_string(iter) + ".csv";
-            string text = fileread(fin);
-            int position = text.find('\n'); // Удаляем названия столбцов
-            text.erase(0, position + 1);
-            filetext += text + '\n';
-        }
-        tables.insert(tableName, filetext); // Сохраняем текст в хэш-таблицу с именем таблицы как ключ
     }
-    return tables; // Возвращаем хэш-таблицу с текстами
+    return stlbindex;
 }
 
-    // SinglyLinkedList<string> findStlbTable(SinglyLinkedList<Where>& conditions, SinglyLinkedList<string>& tables, int stlbindexvalnext, string table) { // ф-ия инпута нужных колонок из таблиц для условиястолбец(для select)
-    //     SinglyLinkedList<string> column;
-    //     for (int i = 0; i < conditions.size; ++i) {
-    //         if (conditions.getvalue(i).table == table) {
-    //             stringstream stream(tables.getvalue(i));
-    //             string str;
-    //             while (getline(stream, str)) {
-    //                 stringstream istream(str);
-    //                 string token;
-    //                 int currentIndex = 0;
-    //                 while (getline(istream, token, ',')) {
-    //                     if (currentIndex == stlbindexvalnext) {
-    //                         column.push_back(token);
-    //                         break;
-    //                     }
-    //                     currentIndex++;
-    //                 }
-    //             }
-    //         }
-    //     }
-    //     return column;
-    // }
+int BaseData::findIndexStlbCond(string table, string stolbec) { // ф-ия нахождения индекса столбца условия(для select)
+    int index = tablesname.getElementAt(table);
+    string str = coloumnHash.get(index);
+    stringstream ss(str);
+    int stlbindex = 0;
+    while (getline(ss, str, ',')) {
+        if (str == stolbec) break;
+        stlbindex++;
+    }
+    return stlbindex;
+}
 
-void BaseData::sample(Hash_table<int, string>& table) { // Функция выбора
-    for (int i = 0; i < table.size() - 1; ++i) {
-        string currentTable;
-        if (table.get(i, currentTable)) { // Получаем строку таблицы по индексу
-            stringstream onefile(currentTable);
-            string token;
-            while (getline(onefile, token)) {
-                string needstlb;
-                stringstream ionefile(token);
-                int currentIndex = 0;
-                while (getline(ionefile, token, ',')) {
-                    if (currentIndex == i) {
-                        needstlb = token;
+SinglyLinkedList<string> textInFile(SinglyLinkedList<Where>& conditions) { // ф-ия инпута текста из таблиц(для select)
+    string filepath;
+    SinglyLinkedList<string> tables;
+    for (int i = 0; i < conditions.size; ++i) {
+        string filetext;
+        int index = nametables.getindex(conditions.getvalue(i).table);
+        int iter = 0;
+        do {
+            iter++;
+            filepath = "../" + nameBD + '/' + conditions.getvalue(i).table + '/' + to_string(iter) + ".csv";
+            string text = finput(filepath);
+            int position = text.find('\n'); // удаляем названия столбцов
+            text.erase(0, position + 1);
+            filetext += text + '\n';
+        } while (iter != fileindex.getvalue(index));
+        tables.push_back(filetext);
+    }
+    return tables;
+}
+
+Hash_table<string, string> BaseData::findTable(SinglyLinkedList<Filters>& filters, Hash_table<string, string>& tablesHash, int stlbindexvalnext, string table) {
+    Hash_table<string, string> columnHash;
+    for (int i = 0; i < filters.size(); ++i) {
+        const Filters& filter = filters.getElementAt(i);
+        if (filter.table == table) {
+            string tableData;
+            if (tablesHash.get(table, tableData)) { // Получаем данные таблицы из хеш-таблицы
+                stringstream stream(tableData);
+                string row;
+                while (getline(stream, row)) {
+                    stringstream rowStream(row);
+                    string token;
+                    int currentIndex = 0;
+                    while (getline(rowStream, token, ',')) {
+                        if (currentIndex == stlbindexvalnext) {
+                            columnHash.insert(token, token); // Используем значение как ключ и значение
+                            break;
+                        }
+                        currentIndex++;
+                    }
+                }
+            }
+        }
+    }
+    return columnHash;
+}
+
+void BaseData::sample(Hash_table<int, string>& stlbindex, Hash_table<int, string>& tables) {
+    for (int i = 0; i < tables.size() - 1; ++i) {
+        string onefile;
+        if (!tables.get(i, onefile)) {
+            cerr << "Ошибка: таблица с индексом " << i << " не найдена." << endl;
+            continue;
+        }
+        stringstream onefileStream(onefile);
+        string token;
+        while (getline(onefileStream, token)) {
+            string needstlb;
+            stringstream lineStream(token);
+            int currentIndex = 0;
+            while (getline(lineStream, token, ',')) {
+                string indexStr;
+                if (!stlbindex.get(i, indexStr)) {
+                    cerr << "Ошибка: индекс столбца для таблицы " << i << " не найден." << endl;
+                    break;
+                }
+                int index = stoi(indexStr); // Преобразование строки в число
+                if (currentIndex == index) {
+                    needstlb = token;
+                    break;
+                }
+                currentIndex++;
+            }
+            string twofile;
+            if (!tables.get(i + 1, twofile)) {
+                cerr << "Ошибка: таблица с индексом " << i + 1 << " не найдена." << endl;
+                continue;
+            }
+            stringstream twofileStream(twofile);
+            while (getline(twofileStream, token)) {
+                stringstream lineTwoStream(token);
+                currentIndex = 0;
+                while (getline(lineTwoStream, token, ',')) {
+                    string indexStr;
+                    if (!stlbindex.get(i + 1, indexStr)) {
+                        cerr << "Ошибка: индекс столбца для таблицы " << i + 1 << " не найден." << endl;
+                        break;
+                    }
+                    int index = stoi(indexStr); // Преобразование строки в число
+                    if (currentIndex == index) {
+                        cout << needstlb << ' ' << token << endl;
                         break;
                     }
                     currentIndex++;
-                }
-                string nextTable; // Получаем следующую таблицу
-                if (table.get(i + 1, nextTable)) {
-                    stringstream twofile(nextTable);
-                    while (getline(twofile, token)) {
-                        stringstream itwofile(token);
-                        currentIndex = 0;
-                        while (getline(itwofile, token, ',')) {
-                            if (currentIndex == i + 1) {
-                                cout << needstlb << ' ' << token << endl;
-                                break;
-                            }
-                            currentIndex++;
-                        }
-                    }
                 }
             }
         }
