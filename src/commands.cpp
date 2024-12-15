@@ -647,7 +647,7 @@ void BaseData::select(SinglyLinkedList<Filters>& filter) { // Функция с�
         foutput(filepath, "close");
     }
 
-    SinglyLinkedList<int> stlbindex = findIndexStlb(conditions); // узнаем индексы столбцов после "select"
+    SinglyLinkedList<int> stlbindex = findIndexStlb(conditions); // узнаем индексы столбцов "select"
     SinglyLinkedList<string> tables = textInput(conditions); // записываем данные из файла в переменные для дальнейшей работы
     sample(stlbindex, tables); // выборка
     for (int i = 0; i < conditions.size; ++i) {
