@@ -44,48 +44,42 @@ void filerec (const string& filename, const string& data) { // Производ�
 
 /// Функции для инсерта ///
 void BaseData::checkInsert(string& table, string& values) {
-    string lockFilePath = "../" + BD + "/" + table + "/" + table + "_lock.txt";
-    if (fileread(lockFilePath) != "open") {
+    if (!checkLockTable(table)) { // Проверка блокировки таблицы
         cerr << "Ошибка! Таблица " << table << " заблокирована другим пользователем!" << endl;
         return;
     }
-
-    string pkFilePath = "../" + BD + "/" + table + "/" + table + "_pk_sequence.txt"; // Увеличиваем первичный ключ
+    string pkFilePath = "../" + BD + "/" + table + "/" + table + "_pk_sequence.txt"; // Получение и обновление первичного ключа
     string pkValue = fileread(pkFilePath);
     if (pkValue.empty()) {
         cerr << "Ошибка! Не удалось прочитать значение первичного ключа!" << endl;
         return;
     }
-    int pkInt = stoi(pkValue); // Текущий первичный ключ (не увеличиваем здесь)
+    int pkInt = stoi(pkValue);
     filerec(pkFilePath, to_string(pkInt + 1));
-    int fileCount; // Обработка количества файлов
+    int fileCount; // Получение количества файлов таблицы
     if (!fileCountHash.get(table, fileCount)) {
         cerr << "Ошибка: Не удалось получить количество файлов для таблицы " << table << endl;
         return;
     }
-
-    string csvFilePath = "../" + BD + "/" + table + "/" + to_string(fileCount) + ".csv";
-    int lineCount = countingLine(csvFilePath); // Проверка количества строк
-    if (lineCount >= rowLimits) {
-        ++fileCount; // Создаем новый файл
-        fileCountHash.remove(table);
-        fileCountHash.insert(table, fileCount);
+    string csvFilePath = "../" + BD + "/" + table + "/" + to_string(fileCount) + ".csv"; // Проверка лимита строк и обновление пути к файлу
+    if (countingLine(csvFilePath) >= rowLimits) {
+        fileCountHash.insert(table, ++fileCount);
         csvFilePath = "../" + BD + "/" + table + "/" + to_string(fileCount) + ".csv";
     }
-    ofstream csvFile(csvFilePath, ios::app);
+    ofstream csvFile(csvFilePath, ios::app); // Открытие файла для записи
     if (!csvFile.is_open()) {
         cerr << "Ошибка с открытием файла " << csvFilePath << " для записи!" << endl;
         return;
     }
-    if (lineCount == 0) {
-        string columnString; // Запись заголовков в файл, если он пуст
+    if (countingLine(csvFilePath) == 0) { // Запись заголовков в файл, если он пуст
+        string columnString;
         if (!coloumnHash.get(table, columnString)) {
             cerr << "Ошибка! Не удалось получить названия столбцов для таблицы " << table << endl;
             return;
         }
         csvFile << columnString << endl;
     }
-    csvFile << pkInt << ',' << values << '\n'; // Запись значения с первичным ключом
+    csvFile << pkInt << ',' << values << '\n'; // Запись данных с первичным ключом
     csvFile.close();
     cout << "Команда выполнена успешно!" << endl;
 }
@@ -177,24 +171,19 @@ void BaseData::deleteZnach(string& table, string& stolbec, string& values) {
     if (checkLockTable(table)) {
         lockTable(table, false);
         
-        // Получаем название столбцов из хэш-таблицы
-        string str; 
+        string str; // Получаем название столбцов из хэш-таблицы
         if (!coloumnHash.get(table, str)) {
             cout << "Ошибка: Столбец не найден!" << endl;
             lockTable(table, true); // Разблокируем таблицу перед выходом
             return;
         }
-
-        // Получаем индекс столбца в файле
-        stringstream ss(str);
+        stringstream ss(str); // Получаем индекс столбца в файле
         int stolbecindex = 0;
         while (getline(ss, str, ',')) {
             if (str == stolbec) break;
             stolbecindex++;
         }
-
-        // Получаем количество файлов для данной таблицы
-        int copy;
+        int copy; // Получаем количество файлов для данной таблицы
         if (!fileCountHash.get(table, copy)) {
             cout << "Ошибка: Не удалось получить количество файлов для таблицы!" << endl;
             lockTable(table, true); // Разблокируем таблицу перед выходом
@@ -224,7 +213,6 @@ void BaseData::deleteZnach(string& table, string& stolbec, string& values) {
             filerec(fin, filteredlines);
             copy--;
         }
-        
         lockTable(table, true);
         cout << "Команда выполнена!" << endl;
     } else {
@@ -319,40 +307,29 @@ void BaseData::deleteFilter(Hash_table<string, Filters>& filter, string& table) 
 void BaseData::Delete(string& command) {
     string table, conditions;
     int position = command.find_first_of(' ');
-
-    // Разделение команды на таблицу и условия
-    if (position != -1) {
+    if (position != -1) { // Разделение команды на таблицу и условия
         table = command.substr(0, position);
         conditions = command.substr(position + 1);
     } else {
         table = command;
     }
-
-    // Проверка существования таблицы в хэш-таблице
-    int fileCount;
+    int fileCount; // Проверка существования таблицы в хэш-таблице
     if (!fileCountHash.get(table, fileCount)) {
         cout << "Ошибка, нет такой таблицы!" << endl;
         return;
     }
-
-    // Удаление всех записей, если нет условий
-    if (conditions.empty()) {
+    if (conditions.empty()) { // Удаление всех записей, если нет условий
         delAll(table);
         return;
     }
-
-    // Проверка условий
-    if (conditions.substr(0, 6) != "WHERE ") {
+    if (conditions.substr(0, 6) != "WHERE ") { // Проверка условий
         cout << "Ошибка, нарушен синтаксис команды!" << endl;
         return;
     }
-    
     conditions.erase(0, 6); // Удаляем "WHERE "
     Hash_table<string, Filters> yslov; // Хэш-таблица для условий
     Filters filter;
-
-    // Обработка первого условия
-    position = conditions.find_first_of(' ');
+    position = conditions.find_first_of(' '); // Обработка первого условия
     if (position == -1) {
         cout << "Ошибка, нарушен синтаксис команды!" << endl;
         return;
@@ -395,8 +372,7 @@ void BaseData::Delete(string& command) {
     }
 }
 
-// Проверка наличия столбца в строке
-bool BaseData::isColumnValid(const string& columnString, const string& column) {
+bool BaseData::isColumnValid(const string& columnString, const string& column) { // Проверка наличия столбца в строке
     stringstream ss(columnString);
     string str;
     while (getline(ss, str, ',')) {
@@ -408,24 +384,20 @@ bool BaseData::isColumnValid(const string& columnString, const string& column) {
     return false;
 }
 
-// Обработка логического оператора
-bool BaseData::processLogicalOperator(string& conditions, Hash_table<string, Filters>& yslov, const string& table) {
+bool BaseData::processLogicalOperator(string& conditions, Hash_table<string, Filters>& yslov, const string& table) { // Обработка логического оператора
     int position = conditions.find_first_of(' ');
     if (position == -1 || (conditions.substr(0, 2) != "OR" && conditions.substr(0, 3) != "AND")) {
         return false;
     }
-
     Filters filter;
     filter.logicOP = conditions.substr(0, position);
     conditions.erase(0, position + 1);
-
     position = conditions.find_first_of(' ');
     if (position == -1) {
         return false;
     }
     filter.colona = conditions.substr(0, position);
     conditions.erase(0, position + 1);
-
     string columnString; // Проверка наличия второго столбца
     if (!coloumnHash.get(table, columnString) || !isColumnValid(columnString, filter.colona)) {
         cout << "Ошибка, нет такого столбца!" << endl;
@@ -440,7 +412,7 @@ bool BaseData::processLogicalOperator(string& conditions, Hash_table<string, Fil
     return true;
 }
 
-    /// Функции для SELECTA ///
+/// Функции для SELECTA ///
     // void isValidSelect(string& command) { // ф-ия проверки ввода команды select
     //     Where conditions;
     //     SinglyLinkedList<Where> cond;
