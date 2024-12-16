@@ -45,9 +45,8 @@ struct BaseData {
     void commands(string& command); // Функция ввода команд
     void sample(Hash_table<int, string>& stlbindex, Hash_table<int, string>& tables); // Функция выбора
     int findIndexStlbCond(string table, string stolbec);
-    SinglyLinkedList<int> BaseData::findIndexStlb(SinglyLinkedList<Filters>& conditions);
     Hash_table<string, string> findTable(SinglyLinkedList<Filters>& filters, Hash_table<string, string>& tablesHash, int stlbindexvalnext, string table);
-    Hash_table<string, string> textInput(Hash_table<string, Filters>& conditions); // Функция инпута текста из таблиц
+    Hash_table<string, string> textInput(Hash_table<string, Filters>& filters); // Функция инпута текста из таблиц
 };
 
 #include "../src/commands.cpp"

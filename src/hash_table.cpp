@@ -91,6 +91,27 @@ int Hash_table<Key, Value>::size() const {
 }
 
 template <typename Key, typename Value>
+Value Hash_table<Key, Value>::getValueAt(int index) const {
+    if (index < 0 || index >= sizetable) {
+        throw out_of_range("Индекс вне диапазона хэш-таблицы");
+    }
+
+    int count = 0;
+    for (size_t i = 0; i < SIZE; ++i) {
+        HNode<Key, Value>* current = table[i];
+
+        while (current) {
+            if (count == index) {
+                return current->value; // Возвращаем значение по индексу
+            }
+            current = current->next;
+            count++;
+        }
+    }
+    throw out_of_range("Значение для указанного индекса не найдено"); // Это не должно произойти, если проверка индекса прошла успешно
+}
+
+template <typename Key, typename Value>
 Key Hash_table<Key, Value>::getKeyAt(int index) const {
     if (index < 0 || index >= sizetable) {
         throw out_of_range("Индекс вне диапазона хэш-таблицы");

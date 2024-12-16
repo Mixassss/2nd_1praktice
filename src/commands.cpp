@@ -646,8 +646,7 @@ void BaseData::select(Hash_table<string, Filters>& filter) { // Функция �
         }
     }
 
-    // Закрытие таблиц
-    for (int i = 0; i < filter.size(); ++i) {
+    for (int i = 0; i < filter.size(); ++i) { // Закрытие таблиц
         Filters currentFilter;
         if (!filter.get(filter.getKeyAt(i), currentFilter)) {
             throw runtime_error("Фильтр не найден по ключу");
@@ -656,21 +655,47 @@ void BaseData::select(Hash_table<string, Filters>& filter) { // Функция �
         filerec(filepath, "close");
     }
 
-    // Узнаем индексы столбцов "select" и записываем данные из файла
-    Hash_table<string, int> stlbindex = findIndexStlb(filter);
-    Hash_table<string, string> tables = textInput(filter);
-    sample(stlbindex, tables); // Выполнение выборки
+    Hash_table<int, string> stlbindex; // Узнаем индексы столбцов "select" и записываем данные из файла
+    for (int i = 0; i < filter.size(); ++i) {
+        Filters currentFilter;
+        if (!filter.get(filter.getKeyAt(i), currentFilter)) {
+            throw runtime_error("Фильтр не найден по ключу");
+        }
+        int index = tablesname.getIndex(currentFilter.table);
+        string str = coloumnHash.getValueAt(index); // Используем новый метод
+        stringstream ss(str);
+        int stolbecindex = 0;
+        while (getline(ss, str, ',')) {
+            if (str == currentFilter.colona) {
+                stlbindex.insert(i, to_string(stolbecindex)); // Добавляем индекс как строку
+                break;
+            }
+            stolbecindex++;
+        }
+    }
 
+    Hash_table<string, string> stringTables = textInput(filter);
+    Hash_table<int, string> intTables;
+
+    for (int i = 0; i < stringTables.size(); ++i) { // Преобразуем stringTables в intTables
+        string key = stringTables.getKeyAt(i);
+        string value;
+        if (!stringTables.get(key, value)) {
+            throw runtime_error("Не удалось получить значение для ключа: " + key);
+        }
+        intTables.insert(i, value); // Используем числовой индекс
+    }
+    sample(stlbindex, intTables); // Выполнение выборки
     for (int i = 0; i < filter.size(); ++i) {  // Открытие таблиц после работы
         Filters currentFilter;
         if (!filter.get(filter.getKeyAt(i), currentFilter)) {
             throw runtime_error("Фильтр не найден по ключу");
         }
-
         string filepath = "../" + BD + '/' + currentFilter.table + '/' + currentFilter.table + "_lock.txt";
         filerec(filepath, "open");
     }
 }
+
     // void selectWithValue(SinglyLinkedList<Where>& conditions, string& table, string& stolbec, struct Where value) { // ф-ия селекта с where для обычного условия
     //     for (int i = 0; i < conditions.size; ++i) {
     //         bool check = checkLockTable(conditions.getvalue(i).table);
@@ -825,52 +850,37 @@ void BaseData::lockTable(string& table, bool open) {
     filerec(fin, open ? "open" : "close");
 }
 
-SinglyLinkedList<int> BaseData::findIndexStlb(SinglyLinkedList<Filters>& filters) { // ф-ия нахождения индекса столбцов(для select)
-    SinglyLinkedList<int> stlbindex;
+///int BaseData::findIndexStlbCond(string table, string stolbec) { // ф-ия нахождения индекса столбца условия(для select)
+    //int index = tablesname.getElementAt(table);
+    //string str = coloumnHash.getValueAt(index);
+    //stringstream ss(str);
+    //int stlbindex = 0;
+    //while (getline(ss, str, ',')) {
+        //if (str == stolbec) break;
+        //stlbindex++;
+   // }
+    //return stlbindex;
+//}
+
+Hash_table<string, string> BaseData::textInput(Hash_table<string, Filters>& filters) { // ф-ия инпута текста из таблиц(для select)
+    string fin;
+    Hash_table<string, string> tables; // Хэш-таблица для хранения текста из файлов
     for (int i = 0; i < filters.size(); ++i) {
-        int index = tablesname.getIndex(filters.getElementAt(i).table);
-        string str = coloumnHash.get(index);
-        stringstream ss(str);
-        int stolbecindex = 0;
-        while (getline(ss, str, ',')) {
-            if (str == filters.getElementAt(i).colona) {
-                stlbindex.pushBack(stolbecindex);
-                break;
-            }
-            stolbecindex++;
-        }
-    }
-    return stlbindex;
-}
-
-int BaseData::findIndexStlbCond(string table, string stolbec) { // ф-ия нахождения индекса столбца условия(для select)
-    int index = tablesname.getElementAt(table);
-    string str = coloumnHash.get(index);
-    stringstream ss(str);
-    int stlbindex = 0;
-    while (getline(ss, str, ',')) {
-        if (str == stolbec) break;
-        stlbindex++;
-    }
-    return stlbindex;
-}
-
-SinglyLinkedList<string> textInFile(SinglyLinkedList<Where>& conditions) { // ф-ия инпута текста из таблиц(для select)
-    string filepath;
-    SinglyLinkedList<string> tables;
-    for (int i = 0; i < conditions.size; ++i) {
         string filetext;
-        int index = nametables.getindex(conditions.getvalue(i).table);
-        int iter = 0;
-        do {
-            iter++;
-            filepath = "../" + nameBD + '/' + conditions.getvalue(i).table + '/' + to_string(iter) + ".csv";
-            string text = finput(filepath);
-            int position = text.find('\n'); // удаляем названия столбцов
+        string tableName = filters.getKeyAt(i); // Получаем имя таблицы из условий
+        int index = tablesname.getIndex(tableName);
+        int fileCount = 0; // Переменная для хранения количества файлов
+        if (!fileCountHash.get(tableName, fileCount)) {
+            throw runtime_error("Не удалось получить количество файлов для таблицы: " + tableName);
+        }
+        for (int iter = 1; iter <= fileCount; ++iter) {
+            fin = "../" + BD + '/' + tableName + '/' + to_string(iter) + ".csv";
+            string text = fileread(fin);
+            int position = text.find('\n'); // Удаляем названия столбцов
             text.erase(0, position + 1);
             filetext += text + '\n';
-        } while (iter != fileindex.getvalue(index));
-        tables.push_back(filetext);
+        }
+        tables.insert(tableName, filetext); // Сохраняем текст в хэш-таблицу с именем таблицы как ключ
     }
     return tables;
 }
