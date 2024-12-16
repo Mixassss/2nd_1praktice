@@ -237,105 +237,79 @@ void BaseData::deleteFilter(Hash_table<string, Filters>& filter, string& table) 
     int index = tablesname.getIndex(table);
     if (checkLockTable(table)) {
         lockTable(table, false);
-
-        SinglyLinkedList<int> stlbindex; // Нахождение индекса столбцов в файле
-        for (int i = 0; i < filter.size(); ++i) {
-            Filters filterValue;
-            if (filter.get(filter.getKeyAt(i), filterValue)) {
-                string columnName = filterValue.colona;
-                string str;
-                if (!coloumnHash.get(table, str)) {
-                    cout << "Ошибка: Не удалось получить значения столбцов для таблицы " << table << endl;
-                    return; // Или обработка ошибки
-                }
-                stringstream ss(str);
-                int stolbecindex = 0;
-                while (getline(ss, str, ',')) {
-                    if (str == columnName) {
-                        stlbindex.pushBack(stolbecindex);
-                        break;
-                    }
-                    stolbecindex++;
-                }
-            }
+        
+        Hash_table<string, int> columnIndices; // Нахождение индексов столбцов для фильтров
+        string str;
+        if (!coloumnHash.get(table, str)) {
+            cout << "Ошибка: Не удалось получить значения столбцов для таблицы " << table << endl;
+            return;
         }
-        int copy; // Удаление строк
+        stringstream ss(str);
+        string columnName;
+        int columnIndex = 0;
+        while (getline(ss, columnName, ',')) {
+            columnIndices.insert(columnName, columnIndex);
+            columnIndex++;
+        }
+        int copy;
         if (!fileCountHash.get(table, copy)) {
             cout << "Ошибка: Не удалось получить количество файлов для таблицы " << table << endl;
-            return; // Или обработка ошибки
+            return;
         }
+        bool anyRowDeleted = false;
+        while (copy != 0) {
+            filepath = "../" + BD + "/" + table + "/" + to_string(copy) + ".csv";
+            string text = fileread(filepath);
+            stringstream stroka(text);
+            string filteredRows;
+            string line;
 
-        bool anyRowDeleted = false; // Флаг для отслеживания, была ли удалена хотя бы одна строка
-
-    while (copy != 0) {
-        filepath = "../" + BD + "/" + table + "/" + to_string(copy) + ".csv";
-        string text = fileread(filepath);
-        stringstream stroka(text);
-        string filteredRows;
-        string line;
-
-        while (getline(stroka, line)) {
-            bool shouldRemove = false;
-            bool firstCondition = true; // Флаг для отслеживания первой проверки условия
-            bool result = true; // Результат логического выражения
-
-            for (int i = 0; i < stlbindex.size(); ++i) {
-                stringstream iss(line);
-                string token;
-                int currentIndex = 0;
-                bool checkCondition = false; // Условие для текущего фильтра
-
-                Filters filterValue;
-                if (filter.get(filter.getKeyAt(i), filterValue)) {
+            while (getline(stroka, line)) {
+                bool shouldRemove = false;
+                for (int i = 0; i < filter.size(); ++i) {
+                    Filters filterValue = filter.getValueAt(i);
+                    int columnIdx; // Проверяем наличие индекса столбца для текущего фильтра
+                    if (!columnIndices.get(filterValue.colona, columnIdx)) {
+                        cout << "Ошибка: Не удалось найти столбец " << filterValue.colona << endl;
+                        return;
+                    }
+                    stringstream iss(line);
+                    string token;
+                    int currentIndex = 0;
+                    bool checkCondition = false;
                     while (getline(iss, token, ',')) {
-                        if (currentIndex == stlbindex.getElementAt(i)) {
-                            // Отладочный вывод для проверки значений
-                            cout << "Проверка: " << token << " против " << filterValue.value << endl;
+                        if (currentIndex == columnIdx) {
                             checkCondition = (token == filterValue.value);
-                            break; // Выходим из цикла, как только нашли нужный индекс
+                            break;
                         }
                         currentIndex++;
                     }
 
-                    // Обработка логических операторов
-                    if (firstCondition) {
-                        result = checkCondition; // Инициализация результата для первого условия
-                        firstCondition = false;
+                    if (filterValue.logicOP == "AND") { // Применение логических операторов
+                        shouldRemove = shouldRemove && checkCondition;
+                    } else if (filterValue.logicOP == "OR") {
+                        shouldRemove = shouldRemove || checkCondition;
                     } else {
-                        if (filterValue.logicOP == "AND") {
-                            result = result && checkCondition; // Логическое 'AND'
-                        } else if (filterValue.logicOP == "OR") {
-                            result = result || checkCondition; // Логическое 'OR'
-                        }
+                        shouldRemove = checkCondition; // Для первого условия
                     }
                 }
+                if (shouldRemove) { // Если результат всех условий true, строка должна быть удалена
+                    anyRowDeleted = true;
+                } else {
+                    filteredRows += line + "\n";
+                }
             }
-
-            // Если результат всех условий true, строка должна быть удалена
-            if (result) {
-                shouldRemove = true;
-                anyRowDeleted = true; // Устанавливаем флаг, что хотя бы одна строка была удалена
+            if (!filteredRows.empty()) {
+                filteredRows.pop_back(); // Убираем последний символ новой строки
+                filerec(filepath, filteredRows);
             }
-
-            // Добавляем строку в результат, если она не должна быть удалена
-            if (!shouldRemove) {
-                filteredRows += line + "\n";
-            }
+            copy--;
         }
-
-        if (!filteredRows.empty()) { // Записываем отфильтрованные строки обратно в файл
-            filteredRows.pop_back(); // Убираем последний символ новой строки
-            filerec(filepath, filteredRows);
-        }   
-        copy--;
-    }
-
-    if (anyRowDeleted) {
-        cout << "Команда выполнена!" << endl;
-    } else {
-        cout << "Ошибка: Не найдено строк для удаления." << endl;
-    }
-
+        if (anyRowDeleted) {
+            cout << "Команда выполнена!" << endl;
+        } else {
+            cout << "Ошибка: Не найдено строк для удаления." << endl;
+        }
         lockTable(table, true);
     } else {
         cout << "Ошибка, таблица используется другим пользователем!" << endl;
