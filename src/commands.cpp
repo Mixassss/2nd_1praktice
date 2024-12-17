@@ -276,7 +276,7 @@ void BaseData::deleteFilter(Hash_table<string, Filters>& filter, string& table) 
                     if (filterValue.logicOP == "AND") { // Применение логических операторов
                         shouldRemove = shouldRemove && checkCondition;
                     } else if (filterValue.logicOP == "OR") {
-                        shouldRemove = shouldRemove || checkCondition;
+                        shouldRemove = shouldRemove && !checkCondition;
                     } else {
                         shouldRemove = checkCondition; // Для первого условия
                     }
@@ -334,7 +334,6 @@ void BaseData::Delete(string& command) {
         cout << "Ошибка, нарушен синтаксис команды!" << endl;
         return;
     }
-
     filter.colona = conditions.substr(0, position);
     conditions.erase(0, position + 1);
 
@@ -350,7 +349,6 @@ void BaseData::Delete(string& command) {
         cout << "Ошибка, нарушен синтаксис команды!" << endl;
         return;
     }
-
     conditions.erase(0, 2);
     position = conditions.find_first_of(' ');
 
@@ -363,9 +361,7 @@ void BaseData::Delete(string& command) {
     filter.value = conditions.substr(0, position);
     conditions.erase(0, position + 1);
     yslov.insert(filter.colona, filter);
-
-    // Обработка логического оператора
-    if (!processLogicalOperator(conditions, yslov, table)) {
+    if (!processLogicalOperator(conditions, yslov, table)) { // Обработка логического оператора
         cout << "Ошибка, нарушен синтаксис команды!" << endl;
     } else {
         deleteFilter(yslov, table);
