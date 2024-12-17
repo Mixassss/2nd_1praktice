@@ -20,7 +20,7 @@ struct BaseData {
     struct Filters { // Структура для фильтрации
         string colona; // Имя столбца
         string value; // Значение для сравнения
-        string table;
+        string table; // Таблица
         string logicOP; // Логический оператор (AND/OR)
         bool check;
     };
@@ -30,26 +30,32 @@ struct BaseData {
     void createLockFile(const string& dir, const string& tableName);
     void createPKFile(const string& dir, const string& tableName);
 
+    /// Функии для INSERT ///
     void checkInsert(string& table, string& values); // Проверка ввода команды инсерта
     void Insert(string& command); // Функция инсерта
+
+    /// Функции для DELETE ///
     void delAll(string& table); // Функция очистки всей таблицы
     void deleteZnach(string& table, string& stolbec, string& values); // Функция удаления строк по значению
     void deleteFilter(Hash_table<string, Filters>& filter, string& table); //Функция удаления по условию
-    void Delete(string& command);
+    void Delete(string& command); // Поверка синтаксиса команды 
     bool isColumnValid(const string& columnString, const string& column);
     bool processLogicalOperator(string& conditions, Hash_table<string, Filters>& yslov, const string& table);
+
+    /// Функции для SELECT ///
+    void isValidSelect(string& command);
     void select(Hash_table<string, Filters>& filter); // Функция команды select
-    void selectWithValue(SinglyLinkedList<Filters>& filters, string& table, string& column, Filters value);
-    void selectWithLogic(SinglyLinkedList<Filters>& conditions, SinglyLinkedList<string>& table, SinglyLinkedList<string>& stolbec, SinglyLinkedList<Filters>& value);
+    void selectWithValue(Hash_table<string, Filters>& filters, string table, Filters value);
+    void selectWithLogic(Hash_table<string, Filters>& conditions, Hash_table<string, string>& tables, Hash_table<string, string>& stolbec, Hash_table<string, Filters>& value);
 
     /// Вспомогательные функции ///
     bool checkLockTable(string table); // Функция проверки открытия таблицы
     void lockTable(string& table, bool open); // Функция закрытия таблицы
     void commands(string& command); // Функция ввода команд
-    void sample(Hash_table<int, string>& stlbindex, Hash_table<int, string>& tables); // Функция выбора
+    void sample(Hash_table<string, int>& stlbindex, Hash_table<string, string>& tables); // Функция выбора
     Hash_table<string, int> findIndexStlb(Hash_table<string, Filters>& filters);
     int findIndexStlbCond(string table, string stolbec);
-    Hash_table<string, string> findTable(SinglyLinkedList<Filters>& filters, Hash_table<string, string>& tablesHash, int stlbindexvalnext, string table);
+    Hash_table<string, string> findTable(Hash_table<string, Filters>& filters, Hash_table<string, string>& tablesHash, int stlbindexvalnext, string table);
     Hash_table<string, string> textInput(Hash_table<string, Filters>& filters); // Функция инпута текста из таблиц
 };
 
