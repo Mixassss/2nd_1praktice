@@ -44,89 +44,115 @@ void filerec (const string& filename, const string& data) { // Производ�
 
 /// Функции для инсерта ///
 void BaseData::checkInsert(string& table, string& values) {
-    if (!checkLockTable(table)) { // Проверка блокировки таблицы
-        cerr << "Ошибка! Таблица " << table << " заблокирована другим пользователем!" << endl;
-        return;
-    }
-    string pkFilePath = "../" + BD + "/" + table + "/" + table + "_pk_sequence.txt"; // Получение и обновление первичного ключа
+        // Путь к файлу первичного ключа
+    string pkFilePath = "../" + BD + "/" + table + "/" + table + "_pk_sequence.txt";
+
+    // Чтение и обновление первичного ключа
     string pkValue = fileread(pkFilePath);
-    if (pkValue.empty()) {
-        cerr << "Ошибка! Не удалось прочитать значение первичного ключа!" << endl;
-        return;
-    }
-    int pkInt = stoi(pkValue);
+    int pkInt = (pkValue.empty()) ? 1 : stoi(pkValue); // Начальное значение ключа
     filerec(pkFilePath, to_string(pkInt + 1));
-    int fileCount; // Получение количества файлов таблицы
+
+    // Проверка блокировки таблицы
+    if (!checkLockTable(table)) {
+        cout << "Ошибка: таблица '" << table << "' заблокирована другим пользователем!" << endl;
+        return;
+    }
+
+    // Блокируем таблицу для записи
+    lockTable(table, false);
+
+    // Работа с файлами и строками
+    int fileID = 1;
+    int lineCount = 0;
+    string csvFilePath = "../" + BD + "/" + table + "/" + to_string(fileID) + ".csv";
+
+    // Получаем количество файлов для таблицы
+    int fileCount = 0;
     if (!fileCountHash.get(table, fileCount)) {
-        cerr << "Ошибка: Не удалось получить количество файлов для таблицы " << table << endl;
+        fileCount = 1;
+        fileCountHash.insert(table, fileCount);
+    }
+
+    // Ищем файл для записи
+    while (true) {
+        lineCount = countingLine(csvFilePath);
+        if (lineCount < rowLimits) {
+            break; // Если в файле есть место, завершаем поиск
+        }
+        fileID++;
+        csvFilePath = "../" + BD + "/" + table + "/" + to_string(fileID) + ".csv";
+
+        if (fileID > fileCount) {
+            fileCountHash.insert(table, fileID); // Обновляем количество файлов в хеш-таблице
+            break;
+        }
+    }
+
+    // Открываем файл и записываем данные
+    ofstream outFile(csvFilePath, ios::app);
+    if (!outFile.is_open()) {
+        cerr << "Ошибка: не удалось открыть файл '" << csvFilePath << "' для записи!" << endl;
+        lockTable(table, true); // Разблокируем таблицу
         return;
     }
-    string csvFilePath = "../" + BD + "/" + table + "/" + to_string(fileCount) + ".csv"; // Проверка лимита строк и обновление пути к файлу
-    if (countingLine(csvFilePath) >= rowLimits) {
-        fileCountHash.insert(table, ++fileCount);
-        csvFilePath = "../" + BD + "/" + table + "/" + to_string(fileCount) + ".csv";
-    }
-    ofstream csvFile(csvFilePath, ios::app); // Открытие файла для записи
-    if (!csvFile.is_open()) {
-        cerr << "Ошибка с открытием файла " << csvFilePath << " для записи!" << endl;
-        return;
-    }
-    if (countingLine(csvFilePath) == 0) { // Запись заголовков в файл, если он пуст
-        string columnString;
-        if (!coloumnHash.get(table, columnString)) {
-            cerr << "Ошибка! Не удалось получить названия столбцов для таблицы " << table << endl;
+
+    if (lineCount == 0) { // Если файл пустой, добавляем заголовки
+        string columns;
+        if (!coloumnHash.get(table, columns)) {
+            cerr << "Ошибка: не удалось получить заголовки для таблицы '" << table << "'!" << endl;
+            lockTable(table, true);
             return;
         }
-        csvFile << columnString << endl;
+        outFile << columns << endl;
     }
-    csvFile << pkInt << ',' << values << '\n'; // Запись данных с первичным ключом
-    csvFile.close();
-    cout << "Команда выполнена успешно!" << endl;
+
+    outFile << pkInt << ',' << values << '\n'; // Записываем строку с первичным ключом
+    outFile.close();
+
+    // Разблокируем таблицу
+    lockTable(table, true);
+    cout << "Команда выполнена!" << endl;
 }
 
 void BaseData::Insert(string& command) {
     string valuesPrefix = "VALUES";
-    size_t position = command.find_first_of(' ');
+    size_t pos = command.find_first_of(' ');
 
-    if (position == string::npos) {
-        cout << "Ошибка! Синтаксис команды нарушен!" << endl;
+    if (pos == string::npos) {
+        cout << "Ошибка! Неправильный синтаксис команды." << endl;
         return;
     }
-    string table = command.substr(0, position); // Извлечение названия таблицы
-    command.erase(0, position + 1); // Удаление названия таблицы из команды
-    table.erase(remove_if(table.begin(), table.end(), ::isspace), table.end()); // Удаление пробелов до и после названия таблицы
-
+    string table = command.substr(0, pos); // Извлечение имени таблицы
+    command.erase(0, pos + 1);
     if (!tablesname.find(table)) {
-        cout << "Ошибка! Таблица не найдена!" << endl;
+        cout << "Ошибка! Таблица '" << table << "' не найдена." << endl;
         return;
     }
     if (command.substr(0, valuesPrefix.size()) != valuesPrefix) {
-        cout << "Ошибка! Префикс VALUES отсутствует!" << endl;
+        cout << "Ошибка! Отсутствует ключевое слово VALUES." << endl;
         return;
     }
-    command.erase(0, valuesPrefix.size() + 1); // Удаление префикса VALUES и пробела
-    position = command.find_first_of(')'); 
-    if (position == string::npos || command.empty() || 
-        command.front() != '(' || command.back() != ')') {
-        cout << "Ошибка! Синтаксис команды нарушен!" << endl;
+    command.erase(0, valuesPrefix.size() + 1); // Удаляем 'VALUES '
+    if (command.front() != '(' || command.back() != ')') {
+        cout << "Ошибка! Неправильный формат значений." << endl;
         return;
     }
-    command.erase(0, 1); // Удаление открывающей скобки
-    command.pop_back();   // Удаление закрывающей скобки
-    command.erase(remove_if(command.begin(), command.end(), ::isspace), command.end()); // Удаление пробелов
-    string columnData; // Получаем названия столбцов и проверяем количество
+    command.erase(0, 1); // Удаляем '('
+    command.pop_back(); // Удаляем ')'
+
+    string columnData;
     if (!coloumnHash.get(table, columnData)) {
-        cerr << "Ошибка! Не удалось получить названия столбцов для таблицы " << table << endl;
+        cerr << "Ошибка! Не удалось получить столбцы для таблицы '" << table << "'." << endl;
         return;
     }
-    // Подсчет количества столбцов
-    int countColumns = count(columnData.begin(), columnData.end(), ',') + 1; // Количество столбцов
-    int countValues = count(command.begin(), command.end(), ',') + 1; // Количество значений
-    if (countColumns != countValues + 1) { // +1 для первичного ключа
-        cout << "Ошибка! Количество значений не совпадает с количеством колонок!" << endl;
+    int columnCount = count(columnData.begin(), columnData.end(), ',') + 1;
+    int valueCount = count(command.begin(), command.end(), ',') + 1;
+
+    if (valueCount != columnCount - 1) { // -1 из-за первичного ключа
+        cout << "Ошибка! Несоответствие количества значений и столбцов." << endl;
         return;
     }
-    checkInsert(table, command); // Вызов функции вставки
+    checkInsert(table, command);
 }
 
 /// Функции для DELETE FROM ///
