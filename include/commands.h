@@ -22,6 +22,7 @@ struct BaseData {
         string value; // Значение для сравнения
         string table;
         string logicOP; // Логический оператор (AND/OR)
+        bool check;
     };
 
     void parser();
@@ -38,12 +39,15 @@ struct BaseData {
     bool isColumnValid(const string& columnString, const string& column);
     bool processLogicalOperator(string& conditions, Hash_table<string, Filters>& yslov, const string& table);
     void select(Hash_table<string, Filters>& filter); // Функция команды select
+    void selectWithValue(SinglyLinkedList<Filters>& filters, string& table, string& column, Filters value);
+    void selectWithLogic(SinglyLinkedList<Filters>& conditions, SinglyLinkedList<string>& table, SinglyLinkedList<string>& stolbec, SinglyLinkedList<Filters>& value);
 
     /// Вспомогательные функции ///
     bool checkLockTable(string table); // Функция проверки открытия таблицы
     void lockTable(string& table, bool open); // Функция закрытия таблицы
     void commands(string& command); // Функция ввода команд
     void sample(Hash_table<int, string>& stlbindex, Hash_table<int, string>& tables); // Функция выбора
+    Hash_table<string, int> findIndexStlb(Hash_table<string, Filters>& filters);
     int findIndexStlbCond(string table, string stolbec);
     Hash_table<string, string> findTable(SinglyLinkedList<Filters>& filters, Hash_table<string, string>& tablesHash, int stlbindexvalnext, string table);
     Hash_table<string, string> textInput(Hash_table<string, Filters>& filters); // Функция инпута текста из таблиц

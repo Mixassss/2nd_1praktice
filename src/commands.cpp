@@ -638,148 +638,188 @@ void BaseData::select(Hash_table<string, Filters>& filter) { // Функция �
     }
 }
 
-    // void selectWithValue(SinglyLinkedList<Where>& conditions, string& table, string& stolbec, struct Where value) { // ф-ия селекта с where для обычного условия
-    //     for (int i = 0; i < conditions.size; ++i) {
-    //         bool check = checkLockTable(conditions.getvalue(i).table);
-    //         if (!check) {
-    //             cout << "Ошибка, таблица открыта другим пользователем!" << endl;
-    //             return;
-    //         }
-    //     }
-    //     string filepath;
-    //     for (int i = 0; i < conditions.size; ++i) {
-    //         filepath = "../" + nameBD + '/' + conditions.getvalue(i).table + '/' + conditions.getvalue(i).table + "_lock.txt";
-    //         foutput(filepath, "close");
-    //     }
+void BaseData::selectWithValue(SinglyLinkedList<Filters>& filtersList, string& table, string& column, Filters value) {
+    Hash_table<string, Filters> filtersHash; // Преобразование SinglyLinkedList в Hash_table
+    for (int i = 0; i < filtersList.size(); ++i) {
+        Filters filter = filtersList.getElementAt(i);
+        filtersHash.insert(filter.table, filter);
+    }
 
-    //     SinglyLinkedList<int> stlbindex = findIndexStlb(conditions); // узнаем индексы столбцов
-    //     int stlbindexval = findIndexStlbCond(table, stolbec); // узнаем индекс столбца условия
-    //     int stlbindexvalnext = findIndexStlbCond(value.table, value.column); // узнаем индекс столбца условия после '='(нужно если условиестолбец)
-    //     SinglyLinkedList<string> tables = textInFile(conditions); // записываем данные из файла в переменные для дальнейшей работы
-    //     SinglyLinkedList<string> column = findStlbTable(conditions, tables, stlbindexvalnext, value.table);; // записываем колонки таблицы условия после '='(нужно если условиестолбец)
-        
-    //     // фильтруем нужные строки
-    //     for (int i = 0; i < conditions.size; ++i) {
-    //         if (conditions.getvalue(i).table == table) { 
-    //             stringstream stream(tables.getvalue(i));
-    //             string str;
-    //             string filetext;
-    //             int iterator = 0; // нужно для условиястолбец 
-    //             while (getline(stream, str)) {
-    //                 stringstream istream(str);
-    //                 string token;
-    //                 int currentIndex = 0;
-    //                 while (getline(istream, token, ',')) {
-    //                     if (value.check) { // для простого условия
-    //                         if (currentIndex == stlbindexval && token == value.value) {
-    //                             filetext += str + '\n';
-    //                             break;
-    //                         }
-    //                         currentIndex++;
-    //                     } else { // для условиястолбец
-    //                         if (currentIndex == stlbindexval && token == column.getvalue(iterator)) {
-    //                         filetext += str + '\n';
-    //                         }
-    //                         currentIndex++;
-    //                     }
-    //                 }
-    //                 iterator++;
-    //             }
-    //             tables.replace(i, filetext);
-    //         }
-    //     }
+    // Проверка блокировки таблиц
+    for (int i = 0; i < filtersHash.size(); ++i) {
+        Filters filter;
+        filtersHash.get(filtersHash.getKeyAt(i), filter);
+        if (!checkLockTable(filter.table)) {
+            cout << "Ошибка, таблица открыта другим пользователем!" << endl;
+            return;
+        }
+    }
 
-    //     sample(stlbindex, tables); // выборка
+    // Закрытие таблиц для работы
+    for (int i = 0; i < filtersHash.size(); ++i) {
+        Filters filter;
+        filtersHash.get(filtersHash.getKeyAt(i), filter);
+        string filepath = "../" + BD + '/' + filter.table + '/' + filter.table + "_lock.txt";
+        filerec(filepath, "close");
+    }
 
-    //     for (int i = 0; i < conditions.size; ++i) {
-    //         filepath = "../" + nameBD + '/' + conditions.getvalue(i).table + '/' + conditions.getvalue(i).table + "_lock.txt";
-    //         foutput(filepath, "open");
-    //     }
-    // }
+    // Поиск индексов столбцов
+    Hash_table<string, int> stlbIndexTemp = findIndexStlb(filtersHash); // Получаем string -> int
+    Hash_table<int, string> stlbIndex; // Для sample требуется int -> string
+    for (int i = 0; i < stlbIndexTemp.size(); ++i) {
+        stlbIndex.insert(stlbIndexTemp.getValueAt(i), stlbIndexTemp.getKeyAt(i));
+    }
 
-    // void selectWithLogic(SinglyLinkedList<Where>& conditions, SinglyLinkedList<string>& table, SinglyLinkedList<string>& stolbec, SinglyLinkedList<Where>& value) {
-    //     for (int i = 0; i < conditions.size; ++i) {
-    //         bool check = checkLockTable(conditions.getvalue(i).table);
-    //         if (!check) {
-    //             cout << "Ошибка, таблица открыта другим пользователем!" << endl;
-    //             return;
-    //         }
-    //     }
-    //     string filepath;
-    //     for (int i = 0; i < conditions.size; ++i) {
-    //         filepath = "../" + nameBD + '/' + conditions.getvalue(i).table + '/' + conditions.getvalue(i).table + "_lock.txt";
-    //         foutput(filepath, "close");
-    //     }
+    int stlbIndexVal = findIndexStlbCond(table, column);
+    int stlbIndexValNext = findIndexStlbCond(value.table, value.colona);
 
-    //     SinglyLinkedList<int> stlbindex = findIndexStlb(conditions); // узнаем индексы столбцов после "select"
-    //     SinglyLinkedList<string> tables = textInFile(conditions); // записываем данные из файла в переменные для дальнейшей работы
-    //     SinglyLinkedList<int> stlbindexval;// узнаем индексы столбца условия
-    //     for (int i = 0; i < stolbec.size; ++i) {
-    //         int index = findIndexStlbCond(table.getvalue(i), stolbec.getvalue(i));
-    //         stlbindexval.push_back(index);
-    //     }
-    //     SinglyLinkedList<int> stlbindexvalnext; // узнаем индекс столбца условия после '='(нужно если условиестолбец)
-    //     for (int i = 0; i < value.size; ++i) {
-    //         int index = findIndexStlbCond(value.getvalue(i).table, value.getvalue(i).column); // узнаем индекс столбца условия после '='(нужно если условиестолбец)
-    //         stlbindexvalnext.push_back(index);
-    //     }
-    //     SinglyLinkedList<string> column;
-    //     for (int j = 0; j < value.size; ++j) {
-    //         if (!value.getvalue(j).check) { // если условие столбец
-    //             column = findStlbTable(conditions, tables, stlbindexvalnext.getvalue(j), value.getvalue(j).table);
-    //         }
-    //     }
+    // Чтение данных таблиц
+    Hash_table<string, string> tables = textInput(filtersHash);
 
-    //     // фильтруем нужные строки
-    //     for (int i = 0; i < conditions.size; ++i) {
-    //         if (conditions.getvalue(i).table == table.getvalue(0)) {
-    //             stringstream stream(tables.getvalue(i));
-    //             string str;
-    //             string filetext;
-    //             int iterator = 0; // нужно для условиястолбец 
-    //             while (getline(stream, str)) {
-    //                 SinglyLinkedList<bool> checkstr;
-    //                 for (int j = 0; j < value.size; ++j) {
-    //                     stringstream istream(str);
-    //                     string token;
-    //                     int currentIndex = 0;
-    //                     bool check = false;
-    //                     while (getline(istream, token, ',')) {
-    //                         if (value.getvalue(j).check) { // если просто условие
-    //                             if (currentIndex == stlbindexval.getvalue(j) && token == value.getvalue(j).value) {
-    //                                 check = true;
-    //                                 break;
-    //                             }
-    //                             currentIndex++;
-    //                         } else { // если условие столбец
-    //                             if (currentIndex == stlbindexval.getvalue(j) && token == column.getvalue(iterator)) {
-    //                                 check = true;
-    //                                 break;
-    //                             }
-    //                             currentIndex++;
-    //                         }
-    //                     }
-    //                     checkstr.push_back(check);
-    //                 }
-    //                 if (value.getvalue(1).logicalOP == "and") { // Если оператор И
-    //                     if (checkstr.getvalue(0) && checkstr.getvalue(1)) filetext += str + "\n";
-    //                 } else { // Если оператор ИЛИ
-    //                     if (!checkstr.getvalue(0) && !checkstr.getvalue(1));
-    //                     else filetext += str + "\n";
-    //                 }
-    //                 iterator++;
-    //             }
-    //             tables.replace(i, filetext);
-    //         }
-    //     }
+    // Условные столбцы для фильтрации
+    Hash_table<string, string> conditionColumns = findTable(filtersList, tables, stlbIndexValNext, value.table);
 
-    //     sample(stlbindex, tables); // выборка
+    // Фильтрация строк
+    for (int i = 0; i < filtersHash.size(); ++i) {
+        Filters filter;
+        filtersHash.get(filtersHash.getKeyAt(i), filter);
 
-    //     for (int i = 0; i < conditions.size; ++i) {
-    //         filepath = "../" + nameBD + '/' + conditions.getvalue(i).table + '/' + conditions.getvalue(i).table + "_lock.txt";
-    //         foutput(filepath, "open");
-    //     }
-    // }
+        if (filter.table == table) {
+            string tableData;
+            if (tables.get(filter.table, tableData)) {
+                stringstream stream(tableData);
+                string str, fileText;
+                int iterator = 0;
+
+                while (getline(stream, str)) {
+                    stringstream istream(str);
+                    string token;
+                    int currentIndex = 0;
+
+                    while (getline(istream, token, ',')) {
+                        if (value.check) { // Простое условие
+                            if (currentIndex == stlbIndexVal && token == value.value) {
+                                fileText += str + '\n';
+                                break;
+                            }
+                        } else { // Условие-столбец
+                            if (currentIndex == stlbIndexVal && token == conditionColumns.getValueAt(iterator)) {
+                                fileText += str + '\n';
+                                break;
+                            }
+                        }
+                        currentIndex++;
+                    }
+                    iterator++;
+                }
+                tables.insert(filter.table, fileText);
+            }
+        }
+    }
+
+    // Преобразование Hash_table<string, string> в Hash_table<int, string>
+    Hash_table<int, string> indexedTables;
+    for (int i = 0; i < tablesname.size(); ++i) {
+        string tableName = tablesname.getElementAt(i);
+        string tableData;
+        if (tables.get(tableName, tableData)) {
+            indexedTables.insert(i, tableData);
+        }
+    }
+    sample(stlbIndex, indexedTables); // Выборка данных
+
+    // Открытие таблиц обратно
+    for (int i = 0; i < filtersHash.size(); ++i) {
+        Filters filter;
+        filtersHash.get(filtersHash.getKeyAt(i), filter);
+        string filepath = "../" + BD + '/' + filter.table + '/' + filter.table + "_lock.txt";
+        filerec(filepath, "open");
+    }
+}
+
+void BaseData::selectWithLogic(SinglyLinkedList<Filters>& conditions, SinglyLinkedList<string>& table, SinglyLinkedList<string>& stolbec, SinglyLinkedList<Filters>& value) {
+    for (int i = 0; i < conditions.size(); ++i) {
+        bool check = checkLockTable(conditions.getvalue(i).table);
+        if (!check) {
+            cout << "Ошибка, таблица открыта другим пользователем!" << endl;
+            return;
+        }
+    }
+         string filepath;
+         for (int i = 0; i < conditions.size; ++i) {
+             filepath = "../" + nameBD + '/' + conditions.getvalue(i).table + '/' + conditions.getvalue(i).table + "_lock.txt";
+             foutput(filepath, "close");
+         }
+
+         SinglyLinkedList<int> stlbindex = findIndexStlb(conditions); // узнаем индексы столбцов после "select"
+         SinglyLinkedList<string> tables = textInFile(conditions); // записываем данные из файла в переменные для дальнейшей работы
+         SinglyLinkedList<int> stlbindexval;// узнаем индексы столбца условия
+         for (int i = 0; i < stolbec.size; ++i) {
+             int index = findIndexStlbCond(table.getvalue(i), stolbec.getvalue(i));
+             stlbindexval.push_back(index);
+         }
+         SinglyLinkedList<int> stlbindexvalnext; // узнаем индекс столбца условия после '='(нужно если условиестолбец)
+         for (int i = 0; i < value.size; ++i) {
+             int index = findIndexStlbCond(value.getvalue(i).table, value.getvalue(i).column); // узнаем индекс столбца условия после '='(нужно если условиестолбец)
+             stlbindexvalnext.push_back(index);
+         }
+         SinglyLinkedList<string> column;
+         for (int j = 0; j < value.size; ++j) {
+             if (!value.getvalue(j).check) { // если условие столбец
+                 column = findStlbTable(conditions, tables, stlbindexvalnext.getvalue(j), value.getvalue(j).table);
+             }
+         }
+
+         // фильтруем нужные строки
+         for (int i = 0; i < conditions.size; ++i) {
+             if (conditions.getvalue(i).table == table.getvalue(0)) {
+                 stringstream stream(tables.getvalue(i));
+                 string str;
+                 string filetext;
+                 int iterator = 0; // нужно для условиястолбец 
+                 while (getline(stream, str)) {
+                     SinglyLinkedList<bool> checkstr;
+                     for (int j = 0; j < value.size; ++j) {
+                         stringstream istream(str);
+                         string token;
+                         int currentIndex = 0;
+                         bool check = false;
+                         while (getline(istream, token, ',')) {
+                             if (value.getvalue(j).check) { // если просто условие
+                                 if (currentIndex == stlbindexval.getvalue(j) && token == value.getvalue(j).value) {
+                                     check = true;
+                                     break;
+                                }
+                                 currentIndex++;
+                            } else { // если условие столбец
+                                if (currentIndex == stlbindexval.getvalue(j) && token == column.getvalue(iterator)) {
+                                     check = true;
+                                   break;
+                                }
+                                currentIndex++;
+                            }
+                        }
+                      checkstr.push_back(check);
+                   }
+                   if (value.getvalue(1).logicalOP == "and") { // Если оператор И
+                        if (checkstr.getvalue(0) && checkstr.getvalue(1)) filetext += str + "\n";
+                    } else { // Если оператор ИЛИ
+                         if (!checkstr.getvalue(0) && !checkstr.getvalue(1));
+                         else filetext += str + "\n";
+                    }
+                    iterator++;
+                }
+                 tables.replace(i, filetext);
+             }
+         }
+
+         sample(stlbindex, tables); // выборка
+
+         for (int i = 0; i < conditions.size(); ++i) {
+            filepath = "../" + BD + '/' + conditions.getvalue(i).table + '/' + conditions.getvalue(i).table + "_lock.txt";
+            foutput(filepath, "open");
+         }
+    }
 
 bool BaseData::checkLockTable(string table) {
     string fin = "../" + BD + "/" + table + "/" + table + "_lock.txt";
@@ -792,17 +832,41 @@ void BaseData::lockTable(string& table, bool open) {
     filerec(fin, open ? "open" : "close");
 }
 
-///int BaseData::findIndexStlbCond(string table, string stolbec) { // ф-ия нахождения индекса столбца условия(для select)
-    //int index = tablesname.getElementAt(table);
-    //string str = coloumnHash.getValueAt(index);
-    //stringstream ss(str);
-    //int stlbindex = 0;
-    //while (getline(ss, str, ',')) {
-        //if (str == stolbec) break;
-        //stlbindex++;
-   // }
-    //return stlbindex;
-//}
+Hash_table<string, int> BaseData::findIndexStlb(Hash_table<string, Filters>& filters) {
+    Hash_table<string, int> stlbIndex;
+    for (int i = 0; i < filters.size(); ++i) {
+        Filters filter;
+        filters.get(filters.getKeyAt(i), filter);
+
+        int tableIndex = tablesname.getIndex(filter.table);
+        string tableSchema = coloumnHash.getValueAt(tableIndex);
+
+        stringstream ss(tableSchema);
+        string columnName;
+        int columnIndex = 0;
+
+        while (getline(ss, columnName, ',')) {
+            if (columnName == filter.colona) {
+                stlbIndex.insert(filter.colona, columnIndex);
+                break;
+            }
+            columnIndex++;
+        }
+    }
+    return stlbIndex;
+}
+
+int BaseData::findIndexStlbCond(string table, string stolbec) { // ф-ия нахождения индекса столбца условия(для select)
+    int index = tablesname.getIndex(table);
+    string str = coloumnHash.getValueAt(index);
+    stringstream ss(str);
+    int stlbindex = 0;
+    while (getline(ss, str, ',')) {
+        if (str == stolbec) break;
+        stlbindex++;
+    }
+    return stlbindex;
+}
 
 Hash_table<string, string> BaseData::textInput(Hash_table<string, Filters>& filters) { // ф-ия инпута текста из таблиц(для select)
     string fin;
