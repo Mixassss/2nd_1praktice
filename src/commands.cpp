@@ -409,171 +409,138 @@ bool BaseData::processLogicalOperator(string& conditions, Hash_table<string, Fil
 }
 
 /// Функции для SELECTA ///
-    void BaseData::isValidSelect(string& command) { // ф-ия проверки ввода команды select
-         Filters conditions;
-         SinglyLinkedList<Filters> cond;
+void BaseData::isValidSelect(string& command) { 
+    Filters conditions;
+    Hash_table<string, Filters> cond; // Хэш-таблица для хранения условий
 
-         if (command.find_first_of("FROM") != -1) {
-             // работа со столбцами
-             while (command.substr(0, 4) != "FROM") {
-                 string token = command.substr(0, command.find_first_of(' '));
-                 if (token.find_first_of(',') != -1) token.pop_back(); // удаляем запятую
-                 command.erase(0, command.find_first_of(' ') + 1);
-                 if (token.find_first_of('.') != -1) token.replace(token.find_first_of('.'), 1, " ");
-                 else {
-                     cout << "Ошибка, нарушен синтаксис команды!" << endl;
-                     return;
-                 }
-                 stringstream ss(token);
-                 ss >> conditions.table >> conditions.colona;
-                 bool check = false;
-                 int i;
-                 for (i = 0; i < tablesname.size(); ++i) { // проверка, сущ. ли такая таблица
-                     if (conditions.table == tablesname.getvalue(i)) {
-                         check = true;
-                         break;
-                     }
-             }
-                 if (!check) {
-                     cout << "Нет такой таблицы!" << endl;
-                     return;
-                 }
-                 check = false;
-                 stringstream iss(stlb.getvalue(i));
-                while (getline(iss, token, ',')) { // проверка, сущ. ли такой столбец
-                     if (token == conditions.colona) {
-                         check = true;
-                         break;
-                     }
-                 }
-                 if (!check) {
-                     cout << "Нет такого столбца" << endl;
-                     return;
-                 }
-                 cond.pushBack(conditions);
-             }
+    if (command.find("FROM") != string::npos) {
+        // Обработка столбцов
+        while (command.substr(0, 4) != "FROM") {
+            string token = command.substr(0, command.find_first_of(' '));
+            if (token.find(',') != string::npos) token.pop_back(); // Удаляем запятую
+            command.erase(0, command.find_first_of(' ') + 1);
 
-             command.erase(0, command.find_first_of(' ') + 1); // скип from
+            if (token.find('.') != string::npos) {
+                token.replace(token.find('.'), 1, " ");
+            } else {
+                cout << "Ошибка, нарушен синтаксис команды!" << endl;
+                return;
+            }
 
-             // работа с таблицами
-             int iter = 0;
-             while (!command.empty()) { // пока строка не пуста
-                 string token = command.substr(0, command.find_first_of(' '));
-                 if (token.find_first_of(',') != -1) {
-                     token.pop_back();
-                 }
-                 int position = command.find_first_of(' ');
-                 if (position != -1) command.erase(0, position + 1);
-                 else command.erase(0);
-                 if (iter + 1 > cond.size() || token != cond.getvalue(iter).table) {
-                     cout << "Ошибка, указаные таблицы не совпадают или их больше!" << endl;
-                     return;
-                 }
-                 if (command.substr(0, 5) == "WHERE") break; // также заканчиваем цикл если встретился WHERE
-                 iter++;
-             }
-             if (command.empty()) {
-                 select(cond);
-             } else {
-                 if (command.find_first_of(' ') != -1) {
-                     command.erase(0, 6);
-                     int position = command.find_first_of(' ');
-                     if (position != -1) {
-                         string token = command.substr(0, position);
-                         command.erase(0, position + 1);
-                         if (token.find_first_of('.') != -1) {
-                             token.replace(token.find_first_of('.'), 1, " ");
-                             stringstream ss(token);
-                             string table, column;
-                             ss >> table >> column;
-                             if (table == cond.getvalue(0).table) { // проверка таблицы в where
-                                 position = command.find_first_of(' ');
-                                 if ((position != -1) && (command[0] == '=')) {
-                                     command.erase(0, position + 1);
-                                     position = command.find_first_of(' ');
-                                     if (position == -1) { // если нет лог. операторов
-                                         if (command.find_first_of('.') == -1) { // если просто значение
-                                             conditions.value = command;
-                                             conditions.check = true;
-                                             selectWithValue(cond, table, column, conditions);
-                                         } else { // если столбец
-                                             command.replace(command.find_first_of('.'), 1, " ");
-                                             stringstream iss(command);
-                                             iss >> conditions.table >> conditions.column;
-                                             conditions.check = false;
-                                             selectWithValue(cond, table, column, conditions);
-                                         }
+            stringstream ss(token);
+            ss >> conditions.table >> conditions.colona;
 
-                                     } else { // если есть лог. операторы
-                                         SinglyLinkedList<Filters> values;
-                                         token = command.substr(0, position);
-                                         command.erase(0, position + 1);
-                                         if (token.find_first_of('.') == -1) { // если просто значение
-                                             conditions.value = token;
-                                             conditions.check = true;
-                                             values.pushBack(conditions);
-                                         } else { // если столбец
-                                             token.replace(token.find_first_of('.'), 1, " ");
-                                             stringstream stream(token);
-                                             stream >> conditions.table >> conditions.colona;
-                                             conditions.check = false;
-                                             values.pushBack(conditions);
-                                         }
-                                         position = command.find_first_of(' ');
-                                         if ((position != -1) && (command.substr(0, 2) == "or" || command.substr(0, 3) == "and")) {
-                                             conditions.logicOP = command.substr(0, position);
-                                             command.erase(0, position + 1);
-                                             position = command.find_first_of(' ');
-                                             if (position != -1) {
-                                                 token = command.substr(0, position);
-                                                 command.erase(0, position + 1);
-                                                 if (token.find_first_of('.') != -1) {
-                                                     token.replace(token.find_first_of('.'), 1, " ");
-                                                     stringstream istream(token);
-                                                     SinglyLinkedList<string> tables;
-                                                     SinglyLinkedList<string> columns;
-                                                     tables.pushBack(table);
-                                                     columns.pushBack(column);
-                                                     istream >> table >> column;
-                                                     tables.pushBack(table);
-                                                     columns.pushBack(column);
-                                                     if (table == cond.getvalue(0).table) { // проверка таблицы в where
-                                                         position = command.find_first_of(' ');
-                                                         if ((position != -1) && (command[0] == '=')) {
-                                                             command.erase(0, position + 1);
-                                                             position = command.find_first_of(' ');
-                                                             if (position == -1) { // если нет лог. операторов
-                                                                 if (command.find_first_of('.') == -1) { // если просто значение
-                                                                     conditions.value = command.substr(0, position);
-                                                                     conditions.check = true;
-                                                                     command.erase(0, position + 1);
-                                                                     values.pushBack(conditions);
-                                                                     selectWithLogic(cond, tables, columns, values);
-                                                                 } else { // если столбец
-                                                                     token = command.substr(0, position);
-                                                                     token.replace(token.find_first_of('.'), 1, " ");
-                                                                     command.erase(0, position + 1);
-                                                                     stringstream stream(token);
-                                                                     stream >> conditions.table >> conditions.column;
-                                                                     conditions.check = false;
-                                                                     values.pushBack(conditions);
-                                                                     selectWithLogic(cond, tables, columns, values);
-                                                                 }
-                                                             } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
-                                                         } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
-                                                     } else cout << "Ошибка, таблица в where не совпадает с начальной!" << endl;
-                                                 } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
-                                             } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
-                                         } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
-                                     }
-                                 } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
-                             } else cout << "Ошибка, таблица в where не совпадает с начальной!" << endl;
-                         } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
-                     } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
-                 } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
-             }
-         } else cout << "Ошибка, нарушен синтаксис команды!" << endl;
-     }
+            // Проверка существования таблицы
+            bool tableFound = false;
+            for (int i = 0; i < tablesname.size(); ++i) { 
+                if (tablesname.getElementAt(i) == conditions.table) {
+                    tableFound = true;
+                    break;
+                }
+            }
+
+            if (!tableFound) { 
+                cout << "Нет такой таблицы!" << endl;
+                return;
+            }
+
+            string columns;
+            if (!coloumnHash.get(conditions.table, columns)) { // Получаем столбцы из хэша
+                cout << "Ошибка при получении столбцов!" << endl;
+                return;
+            }
+
+            bool columnFound = false;
+            stringstream columnStream(columns);
+            while (getline(columnStream, token, ',')) { // Проверка существования столбца
+                if (token == conditions.colona) {
+                    columnFound = true;
+                    break;
+                }
+            }
+
+            if (!columnFound) {
+                cout << "Нет такого столбца!" << endl;
+                return;
+            }
+
+            cond.insert(conditions.table, conditions); // Добавляем условие в хэш-таблицу
+        }
+
+        command.erase(0, command.find_first_of(' ') + 1); // Скип FROM
+
+        // Обработка таблиц
+        int iter = 0;
+        while (!command.empty()) {
+            string token = command.substr(0, command.find_first_of(' '));
+            if (token.find(',') != string::npos) token.pop_back();
+
+            command.erase(0, command.find_first_of(' ') + 1);
+
+            Filters currentFilter;
+            if (!cond.get(token, currentFilter)) {
+                cout << "Ошибка, указанные таблицы не совпадают или их больше!" << endl;
+                return;
+            }
+
+            if (command.substr(0, 5) == "WHERE") break; // Останавливаемся при WHERE
+            iter++;
+        }
+
+        if (command.empty()) {
+            select(cond); // Выполняем select без условий WHERE
+        } else {
+            // Обработка условий WHERE
+            command.erase(0, 6); // Убираем WHERE
+            Hash_table<string, Filters> values; // Хэш-таблица для хранения условий фильтрации
+
+            while (!command.empty()) {
+                string token = command.substr(0, command.find_first_of(' '));
+                command.erase(0, command.find_first_of(' ') + 1);
+
+                if (token.find('.') != string::npos) {
+                    token.replace(token.find('.'), 1, " ");
+                    stringstream ss(token);
+                    string table, column;
+                    ss >> table >> column;
+
+                    if (table != conditions.table) {
+                        cout << "Ошибка, таблица в WHERE не совпадает с начальной!" << endl;
+                        return;
+                    }
+
+                    conditions.colona = column;
+                    conditions.check = true;
+
+                    string valueToken = command.substr(0, command.find_first_of(' '));
+                    command.erase(0, command.find_first_of(' ') + 1);
+                    conditions.value = valueToken;
+
+                    values.insert(column, conditions);
+                } else {
+                    cout << "Ошибка, нарушен синтаксис условия WHERE!" << endl;
+                    return;
+                }
+
+                // Проверка логических операторов (AND/OR)
+                if (!command.empty()) {
+                    string logicOperator = command.substr(0, command.find_first_of(' '));
+                    if (logicOperator == "AND" || logicOperator == "OR") {
+                        conditions.logicOP = logicOperator;
+                        command.erase(0, command.find_first_of(' ') + 1);
+                    } else {
+                        cout << "Ошибка, неверный логический оператор!" << endl;
+                        return;
+                    }
+                }
+            }
+
+            selectWithLogic(cond, coloumnHash, coloumnHash, values); // Выполняем select с логикой
+        }
+    } else {
+        cout << "Ошибка, нарушен синтаксис команды!" << endl;
+    }
+}
 
 void BaseData::select(Hash_table<string, Filters>& filters) {
     // Проверка блокировки таблиц

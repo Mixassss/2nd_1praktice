@@ -81,9 +81,9 @@ void BaseData::commands(string& command) {
     } else if (command.substr(0, 11) == "DELETE FROM") {
         command.erase(0, 12);
         Delete(command);
-    //} else if (command.substr(0, 6) == "SELECT") {
-        //command.erase(0, 7);
-        //isValidSelect(command);
+    } else if (command.substr(0, 6) == "SELECT") {
+        command.erase(0, 7);
+        isValidSelect(command);
     } else if (command == "STOP") {
         exit(0);
     } else {
