@@ -17,7 +17,7 @@ void BaseData::parser() { // ф-ия парсинга
     }
     rowLimits = objJson["tuples_limit"];
 
-    if (objJson.contains("structure") && objJson["structure"].is_object()) { // проверяем, существование объекта и является ли он объектом
+    if (objJson.contains("structure") && objJson["structure"].is_object()) {
         for (auto elem : objJson["structure"].items()) {
             nametables.pushBack(elem.key());
                 
@@ -64,9 +64,9 @@ void BaseData::createdirect() {
 }
 
 /// Функии для INSERT ///
-void BaseData::checkInsert(string& table, string& values) { // ф-ия вставки в таблицу
+void BaseData::checkInsert(string& table, string& values) {
     string filepath = "../" + BD + "/" + table + "/" + table + "_pk_sequence.txt";
-    int index = nametables.getIndex(table); // получаем индекс таблицы(aka key)
+    int index = nametables.getIndex(table); // получаем индекс таблицы
     string val = fileread(filepath);
     int valint = stoi(val);
     valint++;
@@ -125,34 +125,30 @@ void BaseData::Insert(string& command) {
 }
 
 /// Функции для DELETE ///
-    void BaseData::delAll(string& table) { // ф-ия удаления всех строк таблицы
-        string filepath;
-        int index = nametables.getIndex(table);
-        if (checkLockTable(table)) {
-            filepath = "../" + BD + "/" + table + "/" + table + "_lock.txt";
-            filerec(filepath, "close");
-            
-            // очищаем все файлы
-            int copy = fileindex.getElementAt(index);
-            while (copy != 0) {
-                filepath = "../" + BD + "/" + table + "/" + to_string(copy) + ".csv";
-                filerec(filepath, "");
-                copy--;
-            }
-
-            filerec(filepath, stlb.getElementAt(index)+"\n"); // добавляем столбцы в 1.csv
-
-            filepath = "../" + BD + "/" + table + "/" + table + "_lock.txt";
-            filerec(filepath, "open");
-            cout << "Команда выполнена!" << endl;
-        } else cout << "Ошибка, таблица используется другим пользователем!" << endl;
-    }
-
-void BaseData::delZnach(string& table, string& stolbec, string& values) {
-    string fin;
+void BaseData::delAll(string& table) {
+    string filepath;
     int index = nametables.getIndex(table);
     if (checkLockTable(table)) {
         lockTable(table, false);
+
+        int copy = fileindex.getElementAt(index); // очищаем все файлы
+        while (copy != 0) {
+            filepath = "../" + BD + "/" + table + "/" + to_string(copy) + ".csv";
+            filerec(filepath, "");
+            copy--;
+        }
+        filerec(filepath, stlb.getElementAt(index)+"\n"); // добавляем столбцы в 1.csv
+        lockTable(table, true);
+        cout << "Команда выполнена!" << endl;
+    } else cout << "Ошибка, таблица используется другим пользователем!" << endl;
+}
+
+void BaseData::delZnach(string& table, string& stolbec, string& values) {
+    string filepath;
+    int index = nametables.getIndex(table);
+    if (checkLockTable(table)) {
+        lockTable(table, false);
+
         string str = stlb.getElementAt(index); // нахождение индекса столбца в файле
         stringstream ss(str);
         int stolbecindex = 0;
@@ -160,10 +156,11 @@ void BaseData::delZnach(string& table, string& stolbec, string& values) {
             if (str == stolbec) break;
             stolbecindex++;
         }
+
         int copy = fileindex.getElementAt(index); // удаление строк
         while (copy != 0) {
-            fin = "../" + BD + "/" + table + "/" + to_string(copy) + ".csv";
-            string text = fileread(fin);
+            filepath = "../" + BD + "/" + table + "/" + to_string(copy) + ".csv";
+            string text = fileread(filepath);
             stringstream stroka(text);
             string filteredlines;
             while (getline(stroka, text)) {
@@ -180,7 +177,7 @@ void BaseData::delZnach(string& table, string& stolbec, string& values) {
                 }
                 if (!shouldRemove) filteredlines += text + "\n"; 
             }
-            filerec(fin, filteredlines);
+            filerec(filepath, filteredlines);
             copy--;
         }
 
@@ -189,7 +186,7 @@ void BaseData::delZnach(string& table, string& stolbec, string& values) {
     } else cout << "Ошибка, таблица используется другим пользователем!" << endl;
 }
 
-void BaseData::delYslov(SinglyLinkedList<Filter>& conditions, string& table) { // ф-ия удаления строк таблицы с логикой
+void BaseData::delYslov(SinglyLinkedList<Filter>& conditions, string& table) {
     string fin;
     int index = nametables.getIndex(table);
     if (checkLockTable(table)) {
@@ -344,9 +341,8 @@ bool BaseData::isValidColumn(string& table, string& colona) {
     return false;
 }
 
-
-// ф-ии селекта
-void BaseData::selectall(SinglyLinkedList<Filter>& conditions) { // ф-ия обычного селекта
+/// Функции для SELECT ///
+void BaseData::selectall(SinglyLinkedList<Filter>& conditions) {
     for (int i = 0; i < conditions.elementCount; ++i) {
         bool check = checkLockTable(conditions.getElementAt(i).table);
         if (!check) {
@@ -508,6 +504,7 @@ void BaseData::selectWithLogic(SinglyLinkedList<Filter>& conditions, SinglyLinke
     }
 }
 
+/// Вспомогательные функции ///
 bool BaseData::checkLockTable(string table) { // ф-ия проверки, закрыта ли таблица
     string filepath = "../" + BD + "/" + table + "/" + table + "_lock.txt";
     string check = fileread(filepath);
@@ -520,7 +517,7 @@ void BaseData::lockTable(string& table, bool open) {
     filerec(fin, open ? "open" : "close");
 }
 
-SinglyLinkedList<int> BaseData::findIndexColona(SinglyLinkedList<Filter>& conditions) { // ф-ия нахождения индекса столбцов(для select)
+SinglyLinkedList<int> BaseData::findIndexColona(SinglyLinkedList<Filter>& conditions) { // ф-ия нахождения индекса столбцов
     SinglyLinkedList<int> stlbindex;
     for (int i = 0; i < conditions.elementCount; ++i) {
         int index = nametables.getIndex(conditions.getElementAt(i).table);
@@ -538,7 +535,7 @@ SinglyLinkedList<int> BaseData::findIndexColona(SinglyLinkedList<Filter>& condit
     return stlbindex;
 }
 
-int BaseData::findIndexStlbCond(string table, string stolbec) { // ф-ия нахождения индекса столбца условия(для select)
+int BaseData::findIndexStlbCond(string table, string stolbec) { // ф-ия нахождения индекса столбца условия
     int index = nametables.getIndex(table);
     string str = stlb.getElementAt(index);
     stringstream ss(str);
@@ -550,7 +547,7 @@ int BaseData::findIndexStlbCond(string table, string stolbec) { // ф-ия на�
     return stlbindex;
 }
 
-SinglyLinkedList<string> BaseData::textInFile(SinglyLinkedList<Filter>& conditions) { // ф-ия инпута текста из таблиц(для select)
+SinglyLinkedList<string> BaseData::textInFile(SinglyLinkedList<Filter>& conditions) { // ф-ия инпута текста из таблиц
     string filepath;
     SinglyLinkedList<string> tables;
     for (int i = 0; i < conditions.elementCount; ++i) {
