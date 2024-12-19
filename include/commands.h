@@ -41,18 +41,19 @@ struct BaseData {
     bool isValidColumn(string& table, string& colona);
 
     /// Функции для SELECT ///
-    void isValidSelect(string& command);
-    void select(SinglyLinkedList<Filter>& conditions); // Функция команды select
+    void selectall(SinglyLinkedList<Filter>& conditions); // Функция команды select
     void selectWithValue(SinglyLinkedList<Filter>& conditions, string& table, string& stolbec, struct Filter value);
     void selectWithLogic(SinglyLinkedList<Filter>& conditions, SinglyLinkedList<string>& table, SinglyLinkedList<string>& stolbec, SinglyLinkedList<Filter>& value);
+    bool isValidColumn(const string& table, const string& column);
+    void Select(string& command);
 
     /// Вспомогательные функции ///
     bool checkLockTable(string table); // Функция проверки открытия таблицы
     void checkcommand(string& command); // Функция ввода команд
-    void sample(SinglyLinkedList<int>& stlbindex, SinglyLinkedList<string>& tables); // Функция выбора
-    SinglyLinkedList<int> findIndexStlb(SinglyLinkedList<Filter>& conditions);
+    void selection(SinglyLinkedList<int>& stlbindex, SinglyLinkedList<string>& tables); // Функция выбора
+    SinglyLinkedList<int> findIndexColona(SinglyLinkedList<Filter>& conditions);
     int findIndexStlbCond(string table, string stolbec);
-    SinglyLinkedList<string> findStlbTable(SinglyLinkedList<Filter>& conditions, SinglyLinkedList<string>& tables, int stlbindexvalnext, string table);
+    SinglyLinkedList<string> InputTable(SinglyLinkedList<Filter>& conditions, SinglyLinkedList<string>& tables, int stlbindexvalnext, string table);
     SinglyLinkedList<string> textInFile(SinglyLinkedList<Filter>& conditions); // Функция инпута текста из таблиц
     void lockTable(string& table, bool open);
 };
