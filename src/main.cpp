@@ -1,4 +1,3 @@
-#include "../include/ht.h"
 #include "../include/list.h"
 #include "../include/commands.h"
 #include "../include/json.hpp"
@@ -34,7 +33,7 @@ void filerec(string& filename, string data) { // запись в файл
     fileoutput.close();
 }
 
-void BaseData::checkcommand(string& command) {
+void BaseDate::checkcommand(string& command) {
     if (command.substr(0, 11) == "INSERT INTO") {
         command.erase(0, 12);
         Insert(command);
@@ -43,7 +42,7 @@ void BaseData::checkcommand(string& command) {
         Delete(command);
     } else if (command.substr(0, 6) == "SELECT") {
         command.erase(0, 7);
-        isValidSelect(command);
+        Select(command);
     } else if (command == "STOP") {
         exit(0);
     } else {
@@ -52,7 +51,7 @@ void BaseData::checkcommand(string& command) {
 }
 
 int main() {
-    BaseData airport;
+    BaseDate airport;
 
     airport.parser();
     airport.createdirect();

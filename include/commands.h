@@ -2,7 +2,6 @@
 #define commands_h
 
 #include "utility.h"
-#include "ht.h"
 #include "list.h"
 #include "json.hpp"
 
