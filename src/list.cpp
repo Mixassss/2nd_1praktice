@@ -121,8 +121,8 @@ void SinglyLinkedList<T>::clearSList() {
 }
 
 template <typename T>
-T SinglyLinkedList<T>::getElementAt(size_t index) {
-    if (index < 0 || index >= size()) {
+T SinglyLinkedList<T>::getElementAt(int index) {
+    if (index < 0 || index >= elementCount) {
         throw out_of_range("Index out of range");
     }
 
@@ -135,7 +135,7 @@ T SinglyLinkedList<T>::getElementAt(size_t index) {
 }
 
 template <typename T>
-int SinglyLinkedList<T>::getIndex(T& value) const {
+int SinglyLinkedList<T>::getIndex(T value) {
     Node<T>* current = head;
     int index = 0;
     while (current) {
@@ -146,6 +146,20 @@ int SinglyLinkedList<T>::getIndex(T& value) const {
         index++;
     }
     return -1; // Возвращаем -1, если значение не найдено
+}
+
+template<typename T>
+void SinglyLinkedList<T>::replace(int index, T newValue) {
+    if (index < 0 || index >= size()) {
+        cout << "Index out of bounds." << endl;
+        return;
+    }
+
+    Node<T>* current = head;
+    for (int i = 0; i < index; i++) {
+        current = current->next;
+    }
+    current->data = newValue;
 }
 
 template <typename T>

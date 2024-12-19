@@ -28,8 +28,9 @@ struct SinglyLinkedList {
     void removeAt(T value); //Удаление по индексу
     bool find(T value); //Поиск значений в списке
     void clearSList();
-    T getElementAt(size_t index);
-    int getIndex(T& value) const;
+    T getElementAt(int index);
+    int getIndex(T value);
+    void replace(int index, T newValue);
     Node<T>* getHead() const;
     size_t size();
 };
