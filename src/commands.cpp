@@ -2,7 +2,7 @@
 #include "../include/list.h"
 #include "../include/commands.h"
 
-void BaseData::parser() { // ф-ия парсинга
+void BaseDate::parser() { // ф-ия парсинга
     nlohmann::json objJson;
     ifstream fileinput;
     fileinput.open("../base_date.json");
@@ -36,7 +36,7 @@ void BaseData::parser() { // ф-ия парсинга
     }
 }
 
-void BaseData::createdirect() {
+void BaseDate::createdirect() {
     string command;
     command = "mkdir ../" + BD; // каталог
     system(command.c_str());
@@ -64,7 +64,7 @@ void BaseData::createdirect() {
 }
 
 /// Функии для INSERT ///
-void BaseData::checkInsert(string& table, string& values) {
+void BaseDate::checkInsert(string& table, string& values) {
     string filepath = "../" + BD + "/" + table + "/" + table + "_pk_sequence.txt";
     int index = nametables.getIndex(table); // получаем индекс таблицы
     string val = fileread(filepath);
@@ -97,7 +97,7 @@ void BaseData::checkInsert(string& table, string& values) {
     } else cout << "Ошибка, таблица используется другим пользователем!" << endl;
 }
 
-void BaseData::Insert(string& command) { 
+void BaseDate::Insert(string& command) { 
     size_t position = command.find(' ');
     if (position == string::npos) {
         cout << "Ошибка, нарушен синтаксис команды" << endl;
@@ -125,7 +125,7 @@ void BaseData::Insert(string& command) {
 }
 
 /// Функции для DELETE ///
-void BaseData::delAll(string& table) {
+void BaseDate::delAll(string& table) {
     string filepath;
     int index = nametables.getIndex(table);
     if (checkLockTable(table)) {
@@ -143,7 +143,7 @@ void BaseData::delAll(string& table) {
     } else cout << "Ошибка, таблица используется другим пользователем!" << endl;
 }
 
-void BaseData::delZnach(string& table, string& stolbec, string& values) {
+void BaseDate::delZnach(string& table, string& stolbec, string& values) {
     string filepath;
     int index = nametables.getIndex(table);
     if (checkLockTable(table)) {
@@ -186,7 +186,7 @@ void BaseData::delZnach(string& table, string& stolbec, string& values) {
     } else cout << "Ошибка, таблица используется другим пользователем!" << endl;
 }
 
-void BaseData::delYslov(SinglyLinkedList<Filter>& conditions, string& table) {
+void BaseDate::delYslov(SinglyLinkedList<Filter>& conditions, string& table) {
     string fin;
     int index = nametables.getIndex(table);
     if (checkLockTable(table)) {
@@ -244,7 +244,7 @@ void BaseData::delYslov(SinglyLinkedList<Filter>& conditions, string& table) {
     } else cout << "Ошибка, таблица используется другим пользователем!" << endl;
 }
 
-void BaseData::Delete(string& command) {
+void BaseDate::Delete(string& command) {
     string table, conditions;
     int position = command.find_first_of(' ');
 
@@ -286,7 +286,7 @@ void BaseData::Delete(string& command) {
     }
 }
 
-bool BaseData::parseConditions(string& conditions, string& table, SinglyLinkedList<Filter>& cond) {
+bool BaseDate::parseConditions(string& conditions, string& table, SinglyLinkedList<Filter>& cond) {
     Filter where;
     int position = conditions.find_first_of(' ');
 
@@ -327,7 +327,7 @@ bool BaseData::parseConditions(string& conditions, string& table, SinglyLinkedLi
     return true;
 }
 
-bool BaseData::isValidColumn(string& table, string& colona) {
+bool BaseDate::isValidColumn(string& table, string& colona) {
     int index = nametables.getIndex(table);
     string str = stlb.getElementAt(index);
     stringstream ss(str);
@@ -342,7 +342,7 @@ bool BaseData::isValidColumn(string& table, string& colona) {
 }
 
 /// Функции для SELECT ///
-void BaseData::selectall(SinglyLinkedList<Filter>& conditions) {
+void BaseDate::selectall(SinglyLinkedList<Filter>& conditions) {
     for (int i = 0; i < conditions.elementCount; ++i) {
         bool check = checkLockTable(conditions.getElementAt(i).table);
         if (!check) {
@@ -366,7 +366,7 @@ void BaseData::selectall(SinglyLinkedList<Filter>& conditions) {
     }
 }
 
-void BaseData::selectWithValue(SinglyLinkedList<Filter>& conditions, string& table, string& stolbec, struct Filter value) { // ф-ия селекта с where для обычного условия
+void BaseDate::selectWithValue(SinglyLinkedList<Filter>& conditions, string& table, string& stolbec, struct Filter value) { // ф-ия селекта с where для обычного условия
     for (int i = 0; i < conditions.elementCount; ++i) {
         bool check = checkLockTable(conditions.getElementAt(i).table);
         if (!check) {
@@ -423,7 +423,7 @@ void BaseData::selectWithValue(SinglyLinkedList<Filter>& conditions, string& tab
     }
 }
 
-void BaseData::selectWithLogic(SinglyLinkedList<Filter>& conditions, SinglyLinkedList<string>& table, SinglyLinkedList<string>& stolbec, SinglyLinkedList<Filter>& value) {
+void BaseDate::selectWithLogic(SinglyLinkedList<Filter>& conditions, SinglyLinkedList<string>& table, SinglyLinkedList<string>& stolbec, SinglyLinkedList<Filter>& value) {
     for (int i = 0; i < conditions.elementCount; ++i) {
         bool check = checkLockTable(conditions.getElementAt(i).table);
         if (!check) {
@@ -505,19 +505,19 @@ void BaseData::selectWithLogic(SinglyLinkedList<Filter>& conditions, SinglyLinke
 }
 
 /// Вспомогательные функции ///
-bool BaseData::checkLockTable(string table) { // ф-ия проверки, закрыта ли таблица
+bool BaseDate::checkLockTable(string table) { // ф-ия проверки, закрыта ли таблица
     string filepath = "../" + BD + "/" + table + "/" + table + "_lock.txt";
     string check = fileread(filepath);
     if (check == "open") return true;
     else return false;
 }
 
-void BaseData::lockTable(string& table, bool open) {
+void BaseDate::lockTable(string& table, bool open) {
     string fin = "../" + BD + "/" + table + "/" + table + "_lock.txt";
     filerec(fin, open ? "open" : "close");
 }
 
-SinglyLinkedList<int> BaseData::findIndexColona(SinglyLinkedList<Filter>& conditions) { // ф-ия нахождения индекса столбцов
+SinglyLinkedList<int> BaseDate::findIndexColona(SinglyLinkedList<Filter>& conditions) { // ф-ия нахождения индекса столбцов
     SinglyLinkedList<int> stlbindex;
     for (int i = 0; i < conditions.elementCount; ++i) {
         int index = nametables.getIndex(conditions.getElementAt(i).table);
@@ -535,7 +535,7 @@ SinglyLinkedList<int> BaseData::findIndexColona(SinglyLinkedList<Filter>& condit
     return stlbindex;
 }
 
-int BaseData::findIndexStlbCond(string table, string stolbec) { // ф-ия нахождения индекса столбца условия
+int BaseDate::findIndexStlbCond(string table, string stolbec) { // ф-ия нахождения индекса столбца условия
     int index = nametables.getIndex(table);
     string str = stlb.getElementAt(index);
     stringstream ss(str);
@@ -547,7 +547,7 @@ int BaseData::findIndexStlbCond(string table, string stolbec) { // ф-ия на�
     return stlbindex;
 }
 
-SinglyLinkedList<string> BaseData::textInFile(SinglyLinkedList<Filter>& conditions) { // ф-ия инпута текста из таблиц
+SinglyLinkedList<string> BaseDate::textInFile(SinglyLinkedList<Filter>& conditions) { // ф-ия инпута текста из таблиц
     string filepath;
     SinglyLinkedList<string> tables;
     for (int i = 0; i < conditions.elementCount; ++i) {
@@ -567,7 +567,7 @@ SinglyLinkedList<string> BaseData::textInFile(SinglyLinkedList<Filter>& conditio
     return tables;
 }
 
-SinglyLinkedList<string> BaseData::InputTable(SinglyLinkedList<Filter>& conditions, SinglyLinkedList<string>& tables, int stlbindexvalnext, string table) { // ф-ия инпута нужных колонок из таблиц для условиястолбец(для select)
+SinglyLinkedList<string> BaseDate::InputTable(SinglyLinkedList<Filter>& conditions, SinglyLinkedList<string>& tables, int stlbindexvalnext, string table) { // ф-ия инпута нужных колонок из таблиц для условиястолбец(для select)
     SinglyLinkedList<string> colona;
     for (int i = 0; i < conditions.elementCount; ++i) {
         if (conditions.getElementAt(i).table == table) {
@@ -590,7 +590,7 @@ SinglyLinkedList<string> BaseData::InputTable(SinglyLinkedList<Filter>& conditio
     return colona;
 }
 
-void BaseData::selection(SinglyLinkedList<int>& stlbindex, SinglyLinkedList<string>& tables) {
+void BaseDate::selection(SinglyLinkedList<int>& stlbindex, SinglyLinkedList<string>& tables) {
     for (int i = 0; i < tables.elementCount - 1; ++i) {
         stringstream onefile(tables.getElementAt(i));
         string token;
@@ -621,7 +621,7 @@ void BaseData::selection(SinglyLinkedList<int>& stlbindex, SinglyLinkedList<stri
     } 
 }
 
-void BaseData::Select(string& command) { // ф-ия проверки ввода команды select
+void BaseDate::Select(string& command) { // ф-ия проверки ввода команды select
     Filter conditions;
     SinglyLinkedList<Filter> cond;
 

@@ -10,7 +10,7 @@ int countingLine (string& fin);
 string fileread (string& filename); // Производим чтение из файла
 void filerec (string& filename, string data); // Производим запись в файл
 
-struct BaseData {
+struct BaseDate {
     string BD; // название БД
     int rowLimits; // лимит строк
     SinglyLinkedList<string> nametables; // названия таблиц
