@@ -2,7 +2,7 @@
     "name": "S7Flights",
     "tuples_limit": 1000,
     "structure": {
-        "aircraftInfo": ["number", "model"],
+        "aircraftInfo": ["number", "model", "price"],
         "departureInfo": ["flight_number", "city_depart", "gate", "city_arrival"]
     }
 }

@@ -91,6 +91,12 @@ int Hash_table<Key, Value>::size() const {
 }
 
 template <typename Key, typename Value>
+bool Hash_table<Key, Value>::containsKey(const Key& key) {
+    Value temp;
+    return get(key, temp);
+}
+
+template <typename Key, typename Value>
 Value Hash_table<Key, Value>::getValueAt(int index) const {
     if (index < 0 || index >= sizetable) {
         throw out_of_range("Индекс вне диапазона хэш-таблицы");

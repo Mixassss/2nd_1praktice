@@ -30,6 +30,7 @@ struct Hash_table {
     int size() const;
     Key getKeyAt(int index) const;
     Value getValueAt(int index) const ;
+    bool containsKey(const Key& key);
 };
 
 #include "../src/hash_table.cpp"

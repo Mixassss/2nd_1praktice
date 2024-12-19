@@ -19,7 +19,7 @@ struct BaseData {
 
     struct Filter { // структура для фильтрации
         string table;
-        string column;
+        string colona;
         string value;
         string logicOP;
         bool check; 
@@ -29,14 +29,16 @@ struct BaseData {
     void createdirect();
 
     /// Функии для INSERT ///
-    void insert(string& table, string& values); // Проверка ввода команды инсерта
-    void isValidInsert(string& command); // Функция инсерта
+    void checkInsert(string& table, string& values); // Проверка ввода команды инсерта
+    void Insert(string& command); // Функция инсерта
 
     /// Функции для DELETE ///
     void delAll(string& table); // Функция очистки всей таблицы
-    void delWithValue(string& table, string& stolbec, string& values); // Функция удаления строк по значению
-    void delWithLogic(SinglyLinkedList<Filter>& conditions, string& table); //Функция удаления по условию
-    void isValidDel(string& command); // Поверка синтаксиса команды 
+    void delZnach(string& table, string& stolbec, string& values); // Функция удаления строк по значению
+    void delYslov(SinglyLinkedList<Filter>& conditions, string& table); //Функция удаления по условию
+    void Delete(string& command); // Поверка синтаксиса команды
+    bool parseConditions(string& conditions, string& table, SinglyLinkedList<Filter>& cond);
+    bool isValidColumn(string& table, string& colona);
 
     /// Функции для SELECT ///
     void isValidSelect(string& command);
@@ -52,6 +54,7 @@ struct BaseData {
     int findIndexStlbCond(string table, string stolbec);
     SinglyLinkedList<string> findStlbTable(SinglyLinkedList<Filter>& conditions, SinglyLinkedList<string>& tables, int stlbindexvalnext, string table);
     SinglyLinkedList<string> textInFile(SinglyLinkedList<Filter>& conditions); // Функция инпута текста из таблиц
+    void lockTable(string& table, bool open);
 };
 
 #include "../src/commands.cpp"

@@ -37,10 +37,10 @@ void filerec(string& filename, string data) { // запись в файл
 void BaseData::checkcommand(string& command) {
     if (command.substr(0, 11) == "INSERT INTO") {
         command.erase(0, 12);
-        isValidInsert(command);
+        Insert(command);
     } else if (command.substr(0, 11) == "DELETE FROM") {
         command.erase(0, 12);
-        isValidDel(command);
+        Delete(command);
     } else if (command.substr(0, 6) == "SELECT") {
         command.erase(0, 7);
         isValidSelect(command);

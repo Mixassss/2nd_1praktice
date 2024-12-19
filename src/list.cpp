@@ -121,7 +121,7 @@ void SinglyLinkedList<T>::clearSList() {
 }
 
 template <typename T>
-T SinglyLinkedList<T>::getElementAt(int index) {
+T SinglyLinkedList<T>::getElementAt(int index) const {
     if (index < 0 || index >= elementCount) {
         throw out_of_range("Index out of range");
     }
